@@ -62,6 +62,33 @@ Request queue depth:
 avg by (run_id) (vllm:num_requests_running{run_id=~"$run_id"})
 ```
 
+## Time axis alignment
+
+All panels use `run_started_at` (not `started_at`) as the time origin.
+`run_started_at` marks the moment warmup completed and the OTel sidecar started —
+this is when meaningful metrics begin.
+
+**Scrape gap:** The sidecar config uses `scrape_interval: 5s` and `batch timeout: 5s`,
+so the first metric data point arrives approximately 10s after `run_started_at`.
+This produces a small gap at the left edge of every panel — expected behaviour.
+
+Each panel should include an annotation at `run_started_at`:
+
+```json
+{
+  "name": "Benchmark start",
+  "expr": "changes(bench_run_start_timestamp{run_id=~\"$run_id\"}[1m]) > 0",
+  "step": "60s",
+  "titleFormat": "Benchmark started",
+  "textFormat": "Warmup complete. Sidecar scraping. First data point follows scrape interval (~10s)."
+}
+```
+
+On the compare page, time axes are expressed as **relative seconds since run_started_at**
+so runs started at different wall-clock times are directly comparable.
+
+---
+
 ## Anonymous access
 GF_AUTH_ANONYMOUS_ENABLED=true, GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer.
 Appropriate for small trusted team. No login required to view dashboards.

@@ -103,6 +103,9 @@ class RunConfig(Base):
 
     # inference parameters
     concurrency: int              # parallel requests (default: 1)
+                                  # max concurrent API calls = concurrency × (auto_retry + 1)
+                                  # e.g. concurrency=4, auto_retry=2 → up to 12 simultaneous calls
+                                  # tune carefully on weak engines — can cause OOM or cascading timeouts
     temperature: float            # default: 0.7
     max_tokens: int               # default: 512
     top_p: float                  # default: 1.0

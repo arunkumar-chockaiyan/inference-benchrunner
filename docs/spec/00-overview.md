@@ -35,6 +35,7 @@ for future auth middleware — not used in Phase 1.
 - HTTP client: httpx (async) — used for engine calls AND remote agent calls
 - Database migrations: Alembic (from day 1 — makes SQLite→PostgreSQL a config change)
 - Task queue: asyncio background tasks (v1); Celery optional for v2
+- Metrics shim: prometheus-client — used by ollama_shim.py to expose synthetic Prometheus /metrics on port 9091
 
 ### Frontend
 - Framework: React 18 + TypeScript

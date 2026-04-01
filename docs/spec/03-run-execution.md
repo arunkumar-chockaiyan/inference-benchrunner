@@ -12,14 +12,14 @@ async def execute_run(run_id: UUID, config: RunConfig, suite: PromptSuite):
 
     try:
         # 1. Validate config before touching any processes
-        errors = await driver.validate_config(config)
+        errors = await driver.validate_config(config, db)
         if errors:
             raise ValueError(f"Invalid config: {'; '.join(errors)}")
 
         # 2. Spawn or attach to inference server (via agent or direct)
         await update_run_status(run_id, "starting")
-        spawn_result = await driver.spawn(config)
-        await driver.wait_healthy(config)
+        spawn_result = await driver.spawn(config, run_id)      # Run.id, not RunConfig.id
+        await driver.wait_healthy(config, run_id)
         await db.update(run,
             server_owned=spawn_result.owned,
             server_pid=spawn_result.pid,
@@ -76,12 +76,23 @@ async def execute_run(run_id: UUID, config: RunConfig, suite: PromptSuite):
                         await db.insert(record)
                         await increment_completed(run_id)
                         return
-                    except Exception as e:
+                    except (
+                        httpx.TimeoutException,
+                        httpx.ConnectError,
+                        httpx.RemoteProtocolError,
+                        asyncio.TimeoutError,
+                    ) as e:
+                        # Transient — worth retrying with linear backoff
                         if attempt > config.auto_retry:
                             await record_error(run_id, prompt.id, attempt, e)
                             await increment_failed(run_id)
                             return
                         await asyncio.sleep(1 * attempt)  # linear backoff
+                    except Exception as e:
+                        # Non-retryable (JSON decode, driver error, etc.) — fail immediately
+                        await record_error(run_id, prompt.id, attempt, e)
+                        await increment_failed(run_id)
+                        return
 
         await asyncio.gather(*[run_one(p) for p in suite.prompts])
         await update_run_status(run_id, "completed")

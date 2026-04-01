@@ -27,16 +27,19 @@ class InferenceEngineDriver(ABC):
     # --- Lifecycle (control plane — via agent) ---
 
     @abstractmethod
-    async def spawn(self, config: RunConfig) -> SpawnResult:
+    async def spawn(self, config: RunConfig, run_id: UUID) -> SpawnResult:
         """Start or attach to inference server via agent.
         managed mode: POST to agent /spawn → SpawnResult(owned=True)
         attach mode:  no agent call → SpawnResult(owned=False)
         Agent host = config.host (localhost or Tailscale addr), port = config.agent_port.
+        run_id: Run.id (not RunConfig.id) — this is what the agent registers the process
+        under. All subsequent agent calls (health, status, teardown) use this same run_id.
         """
 
     async def wait_healthy(
         self,
         config: RunConfig,
+        run_id: UUID,
         timeout: int | None = None,
     ) -> None:
         """Poll agent /run/{run_id}/health every 1s until healthy.
@@ -44,11 +47,12 @@ class InferenceEngineDriver(ABC):
         attach mode: calls health_url() directly (no agent).
         Swallows all per-poll errors. Raises TimeoutError when deadline exceeded.
         Uses config.health_timeout_s (default 180s) if timeout not passed.
+        run_id: Run.id — must match the run_id passed to spawn().
         """
         deadline = time.monotonic() + (timeout or config.health_timeout_s or 180)
 
         if config.spawn_mode == "managed":
-            url = f"http://{config.host}:{config.agent_port}/run/{config.id}/health"
+            url = f"http://{config.host}:{config.agent_port}/run/{run_id}/health"
         else:
             url = self.health_url(config)  # attach mode — direct engine call
 
@@ -73,18 +77,18 @@ class InferenceEngineDriver(ABC):
         """
         return f"http://{config.host}:{config.port}/health"
 
-    @abstractmethod
     async def teardown(self, config: RunConfig, result: SpawnResult) -> None:
         """Stop engine if owned. No-op if result.owned is False (attach mode).
         managed mode: DELETE http://{agent_host}:{agent_port}/run/{run_id}
         attach mode:  log and return — never kill a server we didn't start.
+        Concrete implementation on ABC — not abstract, all drivers inherit this unchanged.
         """
 
-    @abstractmethod
     async def is_running(self, config: RunConfig, result: SpawnResult) -> bool:
         """Check if engine is still alive.
         managed mode: GET http://{agent_host}:{agent_port}/run/{run_id}/status
-        attach mode:  GET health_url() — non-blocking, returns False on any error.
+        attach mode:  always returns True (no PID — use is_healthy() instead).
+        Concrete implementation on ABC — not abstract, all drivers inherit this unchanged.
         """
 
     # --- Inference (data plane — direct to engine) ---
@@ -112,9 +116,11 @@ class InferenceEngineDriver(ABC):
         """
 
     @abstractmethod
-    async def validate_config(self, config: RunConfig) -> list[str]:
+    async def validate_config(self, config: RunConfig, db: AsyncSession) -> list[str]:
         """Pre-flight check. Returns list of error strings (empty = valid).
-        Called by POST /api/runs before anything is spawned.
+        Called by execute_run() before anything is spawned.
+        db: AsyncSession injected at call time — used for EngineModel registry checks.
+        Never makes live engine calls. Works for both managed and attach modes.
         """
 
     @abstractmethod
@@ -169,6 +175,10 @@ spawn_mode is ALWAYS "attach" for Ollama — validated in validate_config().
   - Rejects spawn_mode != "attach" with error: "Ollama is a system service — use spawn_mode='attach'"
   - Checks ollama binary exists: `shutil.which("ollama")`
   - Checks model is pulled: `ollama list`
+  - Note: the `shutil.which` and `ollama list` calls are intentional local subprocess checks,
+    not network calls. This is permitted as an additional safety layer on top of the DB registry
+    check. Pattern: `errors = await super().validate_config(config, db)` first for the registry
+    check, then append the local system checks.
 
 ### Ollama metrics shim
 
@@ -452,7 +462,7 @@ Model validation no longer requires a live engine. Works for both managed
 and attach mode:
 
 ```python
-async def validate_config(self, config: RunConfig) -> list[str]:
+async def validate_config(self, config: RunConfig, db: AsyncSession) -> list[str]:
     errors = []
 
     # Check model exists in registry for this engine + host

@@ -1,7 +1,7 @@
 # Inference Benchrunner — API Routes
 
 ## Pagination
-All list endpoints use offset-based pagination: `?page=1&page_size=50`
+All list endpoints use cursor-based pagination: `?cursor=<id>&limit=50`
 
 ## Error responses
 All API errors return an inline error body: `{"detail": str}`.
@@ -9,14 +9,19 @@ No full-page error states in Phase 1.
 
 ## Prompts
 
+IMPORTANT: `/api/prompts/import` and `/api/prompts/export` must be registered
+BEFORE `/api/prompts/{id}` — FastAPI matches literal segments before path parameters
+only when routes are registered in that order.
+
 ```
-GET    /api/prompts                    list (filter: category, page, page_size)
+POST   /api/prompts/import             import from CSV/JSON   ← register first
+GET    /api/prompts/export             export all as JSON     ← register first
+
+GET    /api/prompts                    list (filter: category, cursor, limit)
 POST   /api/prompts                    create
 GET    /api/prompts/{id}               get
 PUT    /api/prompts/{id}               update
 DELETE /api/prompts/{id}               delete
-POST   /api/prompts/import             import from CSV/JSON
-GET    /api/prompts/export             export all as JSON
 
 GET    /api/suites                     list
 POST   /api/suites                     create
@@ -29,9 +34,6 @@ DELETE /api/suites/{id}                delete
 
 ```
 GET    /api/engines                    list supported engines with metadata
-
-
-
 GET    /api/engines/{engine}/models          list from DB (filter: ?host=)
 POST   /api/engines/{engine}/models/sync     trigger live sync from running engine
                                              params: host (str), port (int)
@@ -65,13 +67,15 @@ POST   /api/runs/compare               compute comparison stats for N run_ids
          }]
        }
 
-GET    /api/runs                       list (filter: status, project, engine, tag, page, page_size)
+GET    /api/runs                       list (filter: status, project, engine, tag, cursor, limit)
 POST   /api/runs                       create + immediately start
        - calls driver.validate_config() before starting
        - returns 422 with error list if validation fails
 GET    /api/runs/{id}                  run detail + live progress
 DELETE /api/runs/{id}                  cancel in-progress run
-GET    /api/runs/{id}/requests         paginated RequestRecords (?page&page_size)
+                                       returns 409 if run is already in a terminal
+                                       state (completed, failed, cancelled)
+GET    /api/runs/{id}/requests         paginated RequestRecords (?cursor&limit)
 GET    /api/runs/{id}/export           CSV download (Phase 2)
 ```
 
@@ -80,6 +84,11 @@ GET    /api/runs/{id}/export           CSV download (Phase 2)
 ```
 GET    /api/comparisons                list saved comparisons
 POST   /api/comparisons                save named comparison
+       request:  {"name": str, "run_ids": [uuid], "description": str | null}
+       response: {"id": uuid, "name": str, "token": str, "run_ids": [uuid],
+                  "created_at": datetime}
+       token: URL-safe random string (secrets.token_urlsafe(16)) generated at
+              creation — used for shareable links, immutable after creation
 GET    /api/comparisons/{token}        load by share token
 ```
 
@@ -111,3 +120,14 @@ Event shape (emitted every 2 seconds while running):
   "server_alive": true
 }
 ```
+
+### WebSocket lifecycle
+
+- Server emits events every 2 seconds while `status == "running"`.
+- When the run reaches a terminal state (`completed`, `failed`, `cancelled`), the
+  server emits one final event with the terminal status, then closes the connection
+  with code 1000 (normal closure).
+- Client should reconnect on unexpected closure (code ≠ 1000) with exponential
+  backoff — the backend may have restarted mid-run.
+- If the run does not exist, the server closes immediately with code 1008 (policy
+  violation) and `{"detail": "run not found"}`.

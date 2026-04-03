@@ -1,5 +1,14 @@
 # Inference Benchrunner — Run Execution Engine
 
+## File locations
+
+| Function | File |
+|---|---|
+| `execute_run()`, `render_prompt()` | `backend/services/runner.py` |
+| `collect_record()` | `backend/services/collector.py` |
+| `ch_insert()` | `backend/services/clickhouse.py` |
+| `start_sidecar()` | `backend/services/sidecar.py` |
+
 ## execute_run()
 
 ```python
@@ -7,7 +16,8 @@ async def execute_run(run_id: UUID, config: RunConfig, suite: PromptSuite):
     run = await db.get(Run, run_id)
     driver = get_driver(config.engine)
     spawn_result: SpawnResult | None = None
-    sidecar: subprocess.Popen | None = None
+    sidecar_proc: asyncio.subprocess.Process | None = None
+    sidecar_config_path: Path | None = None
     ollama_shim: subprocess.Popen | None = None
 
     try:
@@ -49,7 +59,7 @@ async def execute_run(run_id: UUID, config: RunConfig, suite: PromptSuite):
         # 5. Start OTel sidecar — only after warmup completes
         #    run_started_at marks this moment — use for Grafana chart alignment
         metrics_port = driver.get_metrics_port(config)
-        sidecar = start_sidecar(
+        sidecar_proc, sidecar_config_path = await start_sidecar(
             run_id=str(run_id),
             engine=config.engine,
             model=config.model,
@@ -58,7 +68,7 @@ async def execute_run(run_id: UUID, config: RunConfig, suite: PromptSuite):
             engine_host=config.host,
         )
         await db.update(run,
-            sidecar_pid=sidecar.pid,
+            sidecar_pid=sidecar_proc.pid,
             run_started_at=datetime.utcnow(),
         )
 
@@ -74,6 +84,10 @@ async def execute_run(run_id: UUID, config: RunConfig, suite: PromptSuite):
                             driver, config, prompt, run_id, attempt
                         )
                         await db.insert(record)
+                        try:
+                            await ch_insert(record, config)  # best-effort
+                        except Exception as e:
+                            logger.warning("ClickHouse insert failed run=%s: %s", run_id, e)
                         await increment_completed(run_id)
                         return
                     except (
@@ -109,14 +123,14 @@ async def execute_run(run_id: UUID, config: RunConfig, suite: PromptSuite):
         # Always clean up — order: shim → sidecar → engine
         if ollama_shim:
             ollama_shim.terminate()
-        if sidecar:
-            sidecar.terminate()
+        if sidecar_proc:
+            sidecar_proc.terminate()
+            await sidecar_proc.wait()    # prevent zombie — wait for SIGTERM to be handled
+        if sidecar_config_path:
+            sidecar_config_path.unlink(missing_ok=True)   # S-04: delete temp config
         if spawn_result and spawn_result.owned:
             await driver.teardown(config, spawn_result)
         # owned=False → attach mode — leave engine running
-        if spawn_result and spawn_result.owned:
-            # If teardown logged an error, set cleanup_warning on the run
-            # (teardown swallows its own exceptions — check logs separately)
 ```
 
 ---

@@ -1,0 +1,22 @@
+# Dev overrides — hot-reload for backend and agent.
+# Activated automatically by docker compose alongside docker-compose.yml.
+# Usage: docker compose up   (override is merged automatically)
+
+services:
+  backend:
+    build:
+      context: ./backend
+    volumes:
+      - ./backend:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8080 --reload
+    environment:
+      - PYTHONDONTWRITEBYTECODE=1
+
+  agent:
+    build:
+      context: ./agent
+    volumes:
+      - ./agent:/app
+    command: uvicorn agent:app --host 0.0.0.0 --port 8787 --reload
+    environment:
+      - PYTHONDONTWRITEBYTECODE=1

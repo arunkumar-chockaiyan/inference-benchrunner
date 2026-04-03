@@ -28,7 +28,7 @@ for future auth middleware — not used in Phase 1.
 ## 2. Technology stack
 
 ### Backend
-- Language: Python 3.11+
+- Language: Python 3.13+
 - Framework: FastAPI
 - Process management: subprocess (local), httpx agent calls (remote via Tailscale)
 - OTel SDK: opentelemetry-sdk, opentelemetry-exporter-otlp
@@ -38,11 +38,11 @@ for future auth middleware — not used in Phase 1.
 - Metrics shim: prometheus-client — used by ollama_shim.py to expose synthetic Prometheus /metrics on port 9091
 
 ### Frontend
-- Framework: React 18 + TypeScript
+- Framework: React 19 + TypeScript
 - Charts: Recharts (chosen over Chart.js — JSX-native, easier Tailwind integration)
 - State: Zustand
-- Styling: Tailwind CSS
-- Build: Vite (dev server for Phase 1; nginx container added in Phase 2)
+- Styling: Tailwind CSS v4 (Rust engine, CSS-native @theme config — no tailwind.config.js)
+- Build: Vite v8 (Rolldown/Rust bundler; dev server for Phase 1; nginx container added in Phase 2)
 
 ### Infrastructure (self-hosted)
 - Metrics store: VictoriaMetrics (single-node for v1)
@@ -52,7 +52,7 @@ for future auth middleware — not used in Phase 1.
 - Optional (phase 3): Apache Kafka, ClickHouse
 
 ### Data persistence
-- App database: SQLite (v1), PostgreSQL (v2+)
+- App database: PostgreSQL 17 (asyncpg driver; SQLite dropped per Phase 1 decision)
 - ORM: SQLAlchemy 2.0 (async)
 
 ### Removed dependencies
@@ -121,8 +121,7 @@ driver file. get_metrics_port() on the driver (not a hardcoded dict) enforces th
 Add Celery only if runs need to survive backend restarts or distributed workers
 are needed.
 
-**SQLite before PostgreSQL.** Zero-ops startup. Alembic from day 1 makes the
-switch a one-line config change.
+**PostgreSQL from day 1.** Adopted from Phase 1 — asyncpg driver, native UUID/JSONB/timestamptz types throughout. Phase 2 Step 22 (migration) is N/A.
 
 **VictoriaMetrics before ClickHouse.** Covers 90% of use cases with minimal
 operational overhead. Add ClickHouse only when row-level SQL drill-down is needed.

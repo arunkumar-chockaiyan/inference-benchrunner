@@ -37,7 +37,7 @@ Read when relevant to your task:
 - docs/spec/08-metrics-storage.md — VictoriaMetrics, what gets stored where
 - docs/spec/09-grafana.md        — Grafana dashboard, panels, provisioning
 - docs/spec/10-infrastructure.md — docker-compose, OTel collector config
-- docs/spec/12-phase3.md         — Kafka/ClickHouse (read ONLY when triggered)
+- docs/spec/12-phase3.md         — Kafka pipeline (read ONLY when triggered)
 - docs/spec/15-environment.md    — all env vars + .env.example
 
 Do NOT read 12-phase3.md unless explicitly instructed.
@@ -66,29 +66,55 @@ backend/
     vllm.py           # VllmDriver
     sglang.py         # SGLangDriver
     ollama_shim.py    # Prometheus shim for Ollama metrics
-    remote.py         # RemoteSpawner (httpx, no SSH)
-  agent.py            # FastAPI agent — manages engine lifecycle
+  services/
+    runner.py         # execute_run(), render_prompt()
+    collector.py      # collect_record()
+    clickhouse.py     # ch_insert() — best-effort ClickHouse write
+    sidecar.py        # start_sidecar()
+  schemas/
+    run.py            # RunCreate, RunRead, RunSummary
+    prompt.py         # PromptCreate, PromptRead
+    suite.py          # SuiteCreate, SuiteRead
+    engine.py         # EngineModelRead
+    comparison.py     # ComparisonRequest, ComparisonResult
+  routers/            # FastAPI route modules
+  tests/              # mirrors source tree
   main.py             # FastAPI backend entrypoint
   database.py         # SQLAlchemy async setup
   models.py           # All SQLAlchemy models
-  runner.py           # execute_run(), collect_record(), render_prompt()
-  sidecar.py          # start_sidecar()
-  routers/            # FastAPI route modules
-  tests/              # mirrors source tree
+  config.py           # pydantic-settings BaseSettings
+agent/
+  agent.py            # FastAPI agent — manages engine lifecycle
+  requirements.txt    # minimal: fastapi, uvicorn, httpx only
+  Dockerfile          # separate image — no backend deps
+  tests/              # agent tests
 frontend/
   src/
+    pages/
+      RunList.tsx       # run list page
+      NewRunWizard.tsx  # 4-step wizard
+      RunDetail.tsx     # run detail + live progress
+      Compare.tsx       # comparison page (BarChart)
+    components/         # shared UI components
+    store/              # Zustand state
+    api/                # typed API client
 infra/
   sidecar.yaml.j2     # Jinja2 OTel sidecar config template
   otel-collector.yaml # Central OTel Collector config
+  clickhouse/
+    init.sql          # inference_requests schema (auto-run on container start)
   grafana/
     provisioning/
       datasources/victoriametrics.yaml
+      datasources/clickhouse.yaml
       dashboards/dashboard.yaml
       dashboards/bench.json           # UID fixed: "bench-dashboard"
-data/                 # SQLite DB (gitignored)
+data/                 # gitignored
 docs/
   spec/               # all spec files live here
 docker-compose.yml
+docker-compose.override.yml  # dev hot-reload (auto-merged)
+Makefile              # common dev commands
 .env.example
 ```
 
@@ -104,7 +130,7 @@ docker compose up
 cd backend && uvicorn main:app --reload --port 8080
 
 # Agent dev server
-cd backend && uvicorn agent:app --reload --port 8787
+cd agent && uvicorn agent:app --reload --port 8787
 
 # Frontend dev server
 cd frontend && npm run dev
@@ -148,7 +174,8 @@ parallel — one subagent per driver file.
 
 ## Do not
 
-- Do NOT add ClickHouse, Kafka, or Phase 3 infrastructure until explicitly instructed
+- Do NOT add Kafka or Phase 3 infrastructure until explicitly instructed
+- ClickHouse IS part of Phase 1 — use clickhouse-connect; ch_insert() lives in services/clickhouse.py
 - Do NOT modify InferenceEngineDriver ABC when adding a new engine — new engines go in their own driver file only
 - Do NOT reuse or mutate run_id — set once at run creation, immutable
 - Do NOT skip the run_id label when writing OTel metrics — every metric must carry it
@@ -166,7 +193,7 @@ parallel — one subagent per driver file.
 **run_id is the spine.** Set at run creation. Stamped on every OTel metric,
 every RequestRecord, used as Grafana dashboard variable. Never reused.
 
-**Universal agent for control plane.** The FastAPI agent (backend/agent.py)
+**Universal agent for control plane.** The FastAPI agent (agent/agent.py)
 manages engine lifecycle for ALL runs — local and remote. Location is just
 config.host. spawn_mode has two values only: "managed" (agent spawns engine)
 or "attach" (engine already running). Ollama is ALWAYS attach mode.
@@ -182,7 +209,7 @@ stream_prompt() → AsyncIterator[str | ResponseMeta]. collect_record() consumes
 the stream and builds the RequestRecord. Drivers do not build records.
 
 **EngineModel registry decouples planning from runtime.** Model data lives in
-SQLite. list_models() is only called during explicit sync. Wizard reads from DB.
+PostgreSQL. list_models() is only called during explicit sync. Wizard reads from DB.
 validate_config() checks DB registry — no live engine call needed.
 
 **SpawnResult owns cleanup contract.** teardown() is a no-op when

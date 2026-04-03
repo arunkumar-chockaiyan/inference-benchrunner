@@ -207,6 +207,7 @@ class Project(Base):
 class SavedComparison(Base):
     id: UUID
     name: str
+    description: str | None       # optional free-text description
     run_ids: list[UUID]           # JSON column
     metric: str                   # "p99"|"ttft"|"throughput"
     created_at: datetime
@@ -234,6 +235,9 @@ class EngineModel(Base):
                                     # "manual" = user added directly
                                     # manual records are NEVER overwritten by sync
     last_synced:  datetime | None   # last time seen in a live sync (synced only)
+    is_stale:     bool              # True = was synced but absent from most recent
+                                    # sync for this engine+host; set by sync endpoint
+                                    # always False for source="manual"
     notes:        str               # free-text, e.g. "Q4_K_M quant, needs 8GB VRAM"
     created_at:   datetime
 

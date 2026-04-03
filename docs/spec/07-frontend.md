@@ -24,11 +24,14 @@ UI order within step:
 2. Local/remote toggle
 3. Host input (shown if remote)
 4. Port input
-5. "Refresh models" button → GET /api/engines/{engine}/models?host=&port=
+5. "Refresh models" button → GET /api/engines/{engine}/models?host={host}
+   (reads from DB registry — does not call live engine)
 6. Model picker (populated after refresh; for llamacpp shows text input)
 7. Concurrency slider
 8. Temperature / max_tokens inputs
 9. spawn_mode selector: "Managed" (agent spawns engine) | "Attach" (connect to existing)
+   For Ollama: selector is hidden, spawn_mode locked to "attach", note displayed:
+   "Ollama runs as a system service — always attach mode."
 
 ### Step 3 — Advanced
 Warmup rounds, auto-retry, request timeout (seconds), watchdog interval (seconds, default 10), variable overrides,
@@ -47,19 +50,26 @@ Summary card of all settings. "Start run" button.
   (dashboard UID fixed as "bench-dashboard" in provisioned JSON)
 
 ## Compare page
+
+### Phase 1
 - Multi-select runs from run history
 - Metric toggle: p99 / TTFT / throughput
-- Chart: Recharts LineChart
-  - X axis: relative seconds since run_started_at (NOT wall-clock time)
-    Runs started at different times are aligned and comparable.
-  - Y axis: selected metric value
-  - One line per run, coloured by run
-- Confidence bands (±1 std dev), toggle on/off
+- Chart: Recharts BarChart — one bar per run, grouped by metric
+  Data source: POST /api/runs/compare (aggregate stats only)
+- Confidence bands shown as error bars (±1 std dev) on each bar
 - TPS source indicator per run: "engine-reported" (Ollama/llamacpp) vs
   "wall-clock" (vLLM/SGLang) — tooltip on metric card
-- Summary scorecard table: avg, p99, min, σ per run
+- Summary scorecard table: avg, p99, min, max, σ per run
 - "Save comparison" button → names it + generates shareable URL
 - Export: PNG chart, CSV data (Phase 2)
+
+### Phase 2 — time-series LineChart
+- Replace BarChart with Recharts LineChart
+- Requires new endpoint: GET /api/runs/{id}/timeseries?metric=p99&bucket_s=10
+  Backend bins RequestRecord rows by time bucket relative to run_started_at,
+  returns aggregated series for charting
+- X axis: relative seconds since run_started_at (NOT wall-clock time)
+- One line per run, coloured by run; confidence bands toggle on/off
 
 ## Prompt library
 Grid of prompt cards, filterable by category.

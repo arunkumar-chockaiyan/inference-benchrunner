@@ -11,18 +11,53 @@ networks:
 
 services:
 
+  postgres:
+    image: postgres:16
+    environment:
+      - POSTGRES_USER=bench
+      - POSTGRES_PASSWORD=bench
+      - POSTGRES_DB=bench
+    ports: ["5432:5432"]
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bench"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks: [bench-net]
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    ports:
+      - "8123:8123"   # HTTP interface
+      - "9000:9000"   # native protocol
+    volumes:
+      - ch-data:/var/lib/clickhouse
+      - ./infra/clickhouse/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8123/ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks: [bench-net]
+
   backend:
     build: ./backend
     ports: ["8080:8080"]
     environment:
-      - DATABASE_URL=sqlite:///./data/bench.db
+      - DATABASE_URL=postgresql+asyncpg://bench:bench@postgres:5432/bench
       - OTEL_COLLECTOR_ENDPOINT=http://otel-collector:4317
       - VICTORIAMETRICS_URL=http://victoriametrics:8428
       - AGENT_URL=http://agent:8787
-    volumes:
-      - ./data:/app/data
-      # docker.sock NOT here — moved to agent service
+      - AGENT_SECRET_KEY=${AGENT_SECRET_KEY}
+      - CLICKHOUSE_URL=http://clickhouse:8123
+      - GRAFANA_URL=http://localhost:3001    # browser-facing — used for deep-link generation
     depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
       agent:
         condition: service_healthy
       victoriametrics:
@@ -32,11 +67,12 @@ services:
     networks: [bench-net]
 
   agent:
-    build: ./backend              # same image as backend
+    build: ./agent                # separate image — minimal deps (fastapi, uvicorn, httpx)
     command: uvicorn agent:app --host 0.0.0.0 --port 8787
     ports: ["8787:8787"]
+    environment:
+      - AGENT_SECRET_KEY=${AGENT_SECRET_KEY}
     volumes:
-      - ./data:/app/data
       - /var/run/docker.sock:/var/run/docker.sock  # agent spawns engines
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8787/health"]
@@ -61,6 +97,9 @@ services:
     ports:
       - "4317:4317"   # OTLP gRPC
       - "4318:4318"   # OTLP HTTP
+    depends_on:
+      victoriametrics:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:13133/"]
       interval: 5s
@@ -90,15 +129,20 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_INSTALL_PLUGINS=grafana-clickhouse-datasource
     volumes:
       - ./infra/grafana/provisioning:/etc/grafana/provisioning
       - grafana-data:/var/lib/grafana
     depends_on:
       victoriametrics:
         condition: service_healthy
+      clickhouse:
+        condition: service_healthy
     networks: [bench-net]
 
 volumes:
+  pg-data:
+  ch-data:
   vm-data:
   grafana-data:
 ```
@@ -107,11 +151,15 @@ volumes:
 
 - **docker.sock on agent, not backend** — agent spawns engines, backend doesn't.
   Reduces backend's privileges. Backend calls agent via http://agent:8787.
-- **Agent uses same image as backend** — no extra Dockerfile. Just a different
-  uvicorn entrypoint. Engine-specific deps (vllm, sglang, etc.) must be in
-  the shared backend/requirements.txt.
+- **Agent has its own directory and image** (`agent/`) — separate Dockerfile with
+  minimal dependencies (fastapi, uvicorn, httpx only). Keeps the remote deployment
+  footprint small and separates agent concerns from backend concerns.
 - **backend depends_on agent** — agent must be healthy before backend starts.
   Prevents backend from attempting engine operations before agent is ready.
+- **AGENT_SECRET_KEY via `${AGENT_SECRET_KEY}`** — read from `.env` at compose
+  time; same value injected into both backend and agent services.
+- **ClickHouse init.sql** — schema created automatically on first container start
+  via the `/docker-entrypoint-initdb.d/` mount. Idempotent (`CREATE TABLE IF NOT EXISTS`).
 
 ## Sidecar → collector connectivity
 
@@ -139,6 +187,14 @@ processors:
 exporters:
   prometheusremotewrite:
     endpoint: http://victoriametrics:8428/api/v1/write
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s   # buffer up to 5 min of VictoriaMetrics unavailability
+    sending_queue:
+      enabled: true
+      queue_size: 1000
 
 service:
   pipelines:

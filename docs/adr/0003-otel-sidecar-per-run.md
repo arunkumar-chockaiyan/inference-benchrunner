@@ -1,56 +1,72 @@
-# ADR-0003: OTel Sidecar Per Run (Not Centralized)
+# ADR-0003: OTel Sidecar Per Run (Benchmarking Host, Not Engine Machine)
 
 **Date:** 2026-03-31
+**Updated:** 2026-04-03
 **Status:** Accepted
-**Context:** InferenceBenchRunner spawns short-lived inference engines for each run and must collect per-engine metrics (CPU, memory, throughput, latency).
+
+**Context:** InferenceBenchRunner spawns short-lived inference engines for each
+run and must collect per-engine metrics (CPU, memory, throughput, latency) tagged
+by run_id for Grafana dashboards.
 
 ## Problem
 
 If a single central OTel collector scrapes all running engines:
-- Collector becomes a bottleneck
+- Collector becomes a bottleneck for parallel runs
 - Difficult to namespace metrics by `run_id` without a registration mechanism
-- Hard to clean up metrics when a run ends (lingering scrape targets)
-- Tight coupling between collector config and active runs
-- Requires dynamic scrape target discovery (complex)
+- Hard to clean up scrape targets when a run ends
+- Requires dynamic scrape target discovery
 
 ## Decision
 
-**Each run spawns its own OTel sidecar** (a separate `otelcol-contrib` process) from a Jinja2 template (`sidecar.yaml.j2`):
+**Each run spawns its own OTel sidecar** (`otelcol-contrib` subprocess) from a
+Jinja2 template (`infra/sidecar.yaml.j2`). The sidecar always runs on the
+**benchmarking host** — never on the remote engine machine.
 
-1. User starts a run
-2. `execute_run()` instantiates the Jinja2 template with `run_id`, engine metrics port, etc.
-3. Template → concrete `otelcol-config-{run_id}.yaml`
-4. `start_sidecar()` spawns `otelcol-contrib --config=...` as a subprocess
-5. Sidecar:
-   - Scrapes engine's `/metrics` endpoint (e.g., `:8000/metrics` for vLLM)
-   - Stamps `run_id`, `model`, `engine` labels on every metric
-   - Buffers to disk
-   - Forwards to central OTel Collector
-6. On run cleanup: `teardown()` kills the sidecar process
+**Lifecycle:**
+1. `execute_run()` renders the Jinja2 template with `run_id`, `model`, `engine`,
+   `metrics_host`, `metrics_port`, `engine_host`
+2. Config written to `/tmp/otel-sidecar-{run_id}.yaml`
+3. `start_sidecar()` spawns `otelcol-contrib --config=...` as an asyncio subprocess
+4. Sidecar starts AFTER warmup completes (`run_started_at` marks this moment)
+5. Sidecar scrapes engine's `/metrics` at `metrics_host:metrics_port` every 5s
+6. Resource processor stamps `run_id`, `model`, `engine`, `host` on every metric
+7. Metrics forwarded to central OTel Collector → VictoriaMetrics
+8. On cleanup: `sidecar_proc.terminate()` + `await sidecar_proc.wait()` + config file unlinked
+
+**Benchmarking host placement rationale:**
+- Remote engine machines require zero pre-installation beyond the agent
+- Sidecar lifetime is bound to `execute_run()` — same process, same cleanup path
+- Scraping over Tailscale is sufficient (HTTP polling every 5s)
+
+**Known limitation (S-01):** The `hostmetrics` receiver captures CPU/memory of
+the benchmarking host, not the remote engine machine. Accepted for Phase 1.
+To be revisited if remote becomes a primary use case.
 
 ## Consequences
 
 **Positive:**
-- Namespacing metrics by `run_id` is automatic (in config, not logic)
-- No dynamic discovery or registration logic
-- Sidecar dies cleanly with the run
-- Each sidecar is independent; no cross-run interference
-- Scales horizontally (one sidecar per run)
+- `run_id` namespacing is automatic (in template config, not logic)
+- No dynamic discovery or registration
+- Sidecar dies cleanly with the run; no lingering scrape targets
+- Each sidecar is independent — no cross-run interference
+- Scales horizontally
 
 **Negative:**
-- One process per run (small footprint ~20 MB/sidecar)
-- Template maintenance (Jinja2 syntax, updates to OTel config)
-- Debugging requires looking at per-run sidecar logs
-- Central collector still needed for aggregation
+- One `otelcol-contrib` process per run (~20 MB each)
+- Template maintenance (Jinja2 syntax, OTel config changes)
+- `hostmetrics` captures benchmarking host for remote runs (S-01)
+- Central collector still needed for aggregation and VictoriaMetrics forwarding
 
 ## Alternatives Considered
 
-1. **Centralized collector with dynamic scrape targets** — Rejected because operational complexity
-2. **Agent mode (Prometheus-style push)** — Rejected because engines expose pull-only metrics
-3. **Instrumentation SDK in backend** — Rejected because doesn't capture engine-level metrics (CPU, memory)
+1. **Centralized collector with dynamic scrape targets** — Rejected: operational complexity, lifecycle coupling
+2. **Co-located sidecar on engine machine** — Rejected for Phase 1: requires deploying otelcol-contrib on every remote GPU server, violating zero-pre-install contract. Revisit in Phase 2.
+3. **Instrumentation SDK in backend only** — Rejected: doesn't capture engine-level metrics (GPU, KV cache, queue depth)
 
 ## Related
 
 - Template: `infra/sidecar.yaml.j2`
-- Instantiation: `backend/orchestration.py:start_sidecar()`
-- Ollama special case: no native `/metrics` → Python shim (`ollama_shim.py`) on port 9091
+- Instantiation: `backend/sidecar.py` → `start_sidecar()`
+- Spec: `docs/spec/04-otel-sidecar.md`
+- Ollama special case: no native `/metrics` → Python shim (`drivers/ollama_shim.py`) on port 9091
+- S-01 open item: `docs/review.md`

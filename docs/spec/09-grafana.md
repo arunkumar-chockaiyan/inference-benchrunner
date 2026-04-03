@@ -7,9 +7,33 @@ URL: http://victoriametrics:8428
 ## Provisioning files
 ```
 infra/grafana/provisioning/
-  datasources/victoriametrics.yaml   # auto-configures data source on startup
+  datasources/victoriametrics.yaml   # auto-configures VictoriaMetrics data source
+  datasources/clickhouse.yaml        # auto-configures ClickHouse data source
   dashboards/dashboard.yaml          # tells Grafana to scan dashboards/ dir
   dashboards/bench.json              # importable dashboard, UID: "bench-dashboard"
+```
+
+### clickhouse.yaml datasource
+
+```yaml
+apiVersion: 1
+datasources:
+  - name: ClickHouse
+    type: grafana-clickhouse-datasource
+    url: http://clickhouse:8123
+    jsonData:
+      defaultDatabase: default
+      port: 8123
+      server: clickhouse
+      username: default
+      tlsSkipVerify: true
+```
+
+Note: requires the `grafana-clickhouse-datasource` plugin. Add to Grafana service
+in docker-compose:
+```yaml
+environment:
+  - GF_INSTALL_PLUGINS=grafana-clickhouse-datasource
 ```
 
 Dashboard UID "bench-dashboard" must be fixed in bench.json — the run detail
@@ -32,9 +56,11 @@ histogram_quantile(0.99,
 )
 ```
 
-TTFT over time:
+TTFT p50 over time:
 ```promql
-avg by (run_id) (bench_request_ttft_ms{run_id=~"$run_id"})
+histogram_quantile(0.50,
+  rate(bench_request_ttft_ms_bucket{run_id=~"$run_id"}[2m])
+)
 ```
 
 Tokens per second:
@@ -84,8 +110,10 @@ Each panel should include an annotation at `run_started_at`:
 }
 ```
 
-On the compare page, time axes are expressed as **relative seconds since run_started_at**
-so runs started at different wall-clock times are directly comparable.
+**Phase 2 note:** When the compare page LineChart is added (Phase 2), time axes
+will be expressed as **relative seconds since run_started_at** so runs started
+at different wall-clock times are directly comparable. The `run_started_at`
+value is available from the Run DB record for this purpose.
 
 ---
 

@@ -1,6 +1,6 @@
 # Inference Benchrunner — Build Order
 
-## Current phase: Phase 1 — not started
+## Current phase: Phase 1 — in progress
 
 Update this file as steps complete. Note any deviations from spec.
 
@@ -14,10 +14,11 @@ with no arrow can run in parallel.
 ```
 Group A — foundation (sequential):
 
-  [ ] 1. Database models + SQLAlchemy async setup + Alembic init
+  [x] 1. Database models + SQLAlchemy async setup + Alembic init
          Create: backend/database.py, backend/models.py, alembic.ini
          Also: create .env.example with all variables and placeholder values
          Also: create backend/tests/ directory structure
+         Deviation: PostgreSQL (asyncpg) used from Phase 1 — see docs/spec/01-data-models.NOTES.md
 
          └─> [ ] 2. InferenceEngineDriver ABC + dataclasses (base.py)
                      Create: backend/drivers/base.py
@@ -28,7 +29,17 @@ Group A — foundation (sequential):
                      └─> [ ] 3c. VllmDriver        (backend/drivers/vllm.py)      }
                      └─> [ ] 3d. SGLangDriver      (backend/drivers/sglang.py)    }
 
-                     └─> [ ] 4. RemoteSpawner      (backend/drivers/remote.py)
+                     └─> [N/A] 4. RemoteSpawner (backend/drivers/remote.py)
+                                  Removed: remote spawning handled by each driver's spawn()
+                                  calling the agent at config.host:config.agent_port directly.
+                                  See docs/review.md R-06.
+
+                     └─> [ ] 4b. Agent service
+                                  Create: agent/agent.py, agent/requirements.txt, agent/Dockerfile
+                                  Includes: all 5 endpoints, verify_agent_key dependency,
+                                  AGENT_SECRET_KEY validation
+                                  Note: agent has no dependency on backend/ code —
+                                  can be built in parallel with steps 3a-3d
 
                      └─> [ ] 5. wait_healthy utility (shared across drivers)
 
@@ -38,8 +49,12 @@ Group B — execution layer (depends on Group A):
   [ ] 6. OTel sidecar template + start_sidecar()
           Create: infra/sidecar.yaml.j2, backend/sidecar.py
 
-          └─> [ ] 7. execute_run() + collect_record() + render_prompt()
-                      Create: backend/runner.py
+          └─> [ ] 7. execute_run() + collect_record() + render_prompt() + ch_insert()
+                      Create: backend/services/runner.py (execute_run, render_prompt)
+                              backend/services/collector.py (collect_record)
+                              backend/services/clickhouse.py (ch_insert — best-effort)
+                              backend/services/sidecar.py (start_sidecar — moved from sidecar.py)
+                      Includes: ClickHouse best-effort write after every PostgreSQL insert
 
                       └─> [ ] 8. FastAPI routes
                                   - prompts + suites
@@ -65,6 +80,8 @@ Group D — infrastructure (depends on Groups B + C):
 
   [ ] 11. Docker Compose stack
            Create: docker-compose.yml, infra/otel-collector.yaml
+           Includes: postgres, clickhouse, otel-collector, victoriametrics, grafana services
+           Also: infra/clickhouse/init.sql (inference_requests schema)
 
            └─> [ ] 12. Grafana dashboard JSON + provisioning files
                         Create: infra/grafana/provisioning/
@@ -83,18 +100,20 @@ Group D — infrastructure (depends on Groups B + C):
 - [ ] 19. Saved comparisons + shareable URLs
 - [ ] 20. Projects + run notes/tags
 - [ ] 21. nginx for frontend (replace Vite dev server)
-- [ ] 22. PostgreSQL migration (Alembic, config change only)
+- [N/A] 22. PostgreSQL migration — skipped: PostgreSQL used from Phase 1
 
 ## Phase 3
 
 Do NOT start until triggers hit. See 12-phase3.md.
 
-- [ ] 23. Kafka pipeline
-- [ ] 24. ClickHouse consumer + schema
-- [ ] 25. Per-request drill-down in compare page
-- [ ] 26. Data retention + auto-purge
-- [ ] 27. Run scheduler
-- [ ] 28. Team member management
+- [ ] 23. Kafka pipeline — sidecar publishes to Kafka; consumers write to VictoriaMetrics
+          and ClickHouse independently. Removes ch_insert() from runner.py (ClickHouse
+          writes move to Kafka consumer). Replaces sidecar's otlp exporter with kafka
+          exporter. No ClickHouse schema change. See docs/review.md S-10.
+- [ ] 24. Per-request drill-down in compare page (timeseries endpoint + LineChart)
+- [ ] 25. Data retention + auto-purge
+- [ ] 26. Run scheduler
+- [ ] 27. Team member management
 
 ---
 
@@ -112,7 +131,7 @@ Example — implementing drivers:
 
 ## Scheduling note
 
-Run scheduling (Phase 2 step 27) is now supported by the data model:
+Run scheduling (Phase 3 step 26) is now supported by the data model:
 - EngineModel registry decouples model browsing from engine runtime
 - Run.status="pending" already exists — scheduler picks up pending runs
 - RunConfig can be created without engine running

@@ -4,8 +4,8 @@ This file provides guidance to Claude Code when working with code in this reposi
 
 ## Project status
 
-Specification complete. No source code written yet.
-Build according to docs/spec/11-build-order.md — Phase 1 first.
+Specification complete. Foundation scaffolding in place (models, config, schemas, service stubs).
+Build according to docs/spec/11-build-order.md — Phase 1 in progress.
 Check off steps in 11-build-order.md as they complete.
 Note any deviations from spec in companion NOTES.md files (e.g. 02-engine-drivers.NOTES.md).
 
@@ -34,7 +34,7 @@ Read when relevant to your task:
 - docs/spec/05-remote-support.md — Tailscale, agent, remote spawning
 - docs/spec/06-api-routes.md     — FastAPI routes, request/response shapes
 - docs/spec/07-frontend.md       — React pages, components, UI behaviour
-- docs/spec/08-metrics-storage.md — VictoriaMetrics, what gets stored where
+- docs/spec/08-metrics-storage.md — VictoriaMetrics + ClickHouse, what gets stored where
 - docs/spec/09-grafana.md        — Grafana dashboard, panels, provisioning
 - docs/spec/10-infrastructure.md — docker-compose, OTel collector config
 - docs/spec/12-phase3.md         — Kafka pipeline (read ONLY when triggered)
@@ -46,11 +46,13 @@ Do NOT read 12-phase3.md unless explicitly instructed.
 
 ## Stack
 
-**Backend:** Python 3.11+, FastAPI, SQLAlchemy 2.0 (async), Alembic, httpx, opentelemetry-sdk
-**Frontend:** React 18 + TypeScript, Vite, Zustand, Tailwind CSS, Recharts
-**Infra:** VictoriaMetrics, OTel Collector (otelcol-contrib), Grafana, Docker Compose
+**Backend:** Python 3.13+, FastAPI, SQLAlchemy 2.0 (async), Alembic, httpx, opentelemetry-sdk
+**Frontend:** React 19 + TypeScript, Vite v8, Zustand, Tailwind CSS v4, Recharts
+**Infra:** PostgreSQL 17, VictoriaMetrics, ClickHouse, OTel Collector (otelcol-contrib), Grafana, Docker Compose
 **Network:** Tailscale for remote machine connectivity — no SSH
 **Removed:** asyncssh — not used anywhere
+
+**Tailwind v4 note:** CSS-native `@theme` config — no `tailwind.config.js`. Use CSS variables.
 
 ---
 
@@ -65,7 +67,7 @@ backend/
     llamacpp.py       # LlamaCppDriver
     vllm.py           # VllmDriver
     sglang.py         # SGLangDriver
-    ollama_shim.py    # Prometheus shim for Ollama metrics
+    ollama_shim.py    # Prometheus shim for Ollama metrics (port 9091)
   services/
     runner.py         # execute_run(), render_prompt()
     collector.py      # collect_record()
@@ -78,23 +80,25 @@ backend/
     engine.py         # EngineModelRead
     comparison.py     # ComparisonRequest, ComparisonResult
   routers/            # FastAPI route modules
-  tests/              # mirrors source tree
+  tests/              # mirrors source tree; conftest.py uses PostgreSQL test DB
   main.py             # FastAPI backend entrypoint
-  database.py         # SQLAlchemy async setup
-  models.py           # All SQLAlchemy models
-  config.py           # pydantic-settings BaseSettings
+  database.py         # SQLAlchemy async setup (engine, AsyncSessionLocal, get_db)
+  models.py           # All SQLAlchemy ORM models
+  config.py           # pydantic-settings BaseSettings (reads .env)
+  pyproject.toml      # pytest, ruff, mypy config
+  requirements.txt    # Python dependencies
 agent/
-  agent.py            # FastAPI agent — manages engine lifecycle
+  agent.py            # FastAPI agent — manages engine lifecycle (spawn/health/status/teardown)
   requirements.txt    # minimal: fastapi, uvicorn, httpx only
   Dockerfile          # separate image — no backend deps
-  tests/              # agent tests
+  tests/              # agent tests; conftest.py uses httpx ASGITransport
 frontend/
   src/
     pages/
       RunList.tsx       # run list page
       NewRunWizard.tsx  # 4-step wizard
-      RunDetail.tsx     # run detail + live progress
-      Compare.tsx       # comparison page (BarChart)
+      RunDetail.tsx     # run detail + live WebSocket progress
+      Compare.tsx       # comparison page (BarChart — Phase 1)
     components/         # shared UI components
     store/              # Zustand state
     api/                # typed API client
@@ -111,10 +115,14 @@ infra/
       dashboards/bench.json           # UID fixed: "bench-dashboard"
 data/                 # gitignored
 docs/
-  spec/               # all spec files live here
+  spec/               # all spec files
+  adr/                # architecture decision records (0001–0005)
+  architecture/       # Excalidraw diagrams + rendered PNGs
+  system-design.md    # visual-first system design overview
 docker-compose.yml
-docker-compose.override.yml  # dev hot-reload (auto-merged)
-Makefile              # common dev commands
+docker-compose.override.yml  # dev hot-reload (auto-merged by Docker Compose)
+justfile              # task runner — use `just <recipe>`
+package.json          # root npm shortcuts (dev, build, test, up, down)
 .env.example
 ```
 
@@ -122,28 +130,43 @@ Makefile              # common dev commands
 
 ## Running the stack
 
+Primary task runner is `just` (install: `winget install Casey.Just`):
+
 ```bash
 # Full stack
-docker compose up
+just up
 
-# Backend dev server
-cd backend && uvicorn main:app --reload --port 8080
+# Dev servers (hot-reload)
+just backend             # FastAPI :8080
+just agent               # Agent :8787
+just frontend            # Vite :3000
 
-# Agent dev server
-cd agent && uvicorn agent:app --reload --port 8787
+# Tests
+just test                # backend + frontend
+just test-backend        # cd backend && pytest -x -v --tb=short --no-header
+just test-agent          # cd agent && pytest -x -v --tb=short --no-header
+just test-frontend       # cd frontend && npm test -- --run
 
-# Frontend dev server
-cd frontend && npm run dev
+# Database
+just migrate             # alembic upgrade head
+just migration "msg"     # alembic revision --autogenerate
 
-# Backend tests
-cd backend && pytest -x -v --tb=short --no-header
+# Lint / format / typecheck
+just lint
+just fmt
+just typecheck
 
-# Frontend tests
-cd frontend && npm test -- --run
+# Install all deps
+just install
+```
 
-# Database migrations
-cd backend && alembic upgrade head
-cd backend && alembic revision --autogenerate -m "description"
+npm shortcuts at root (no `just` required):
+
+```bash
+npm run dev    # frontend dev server
+npm test       # frontend tests
+npm run up     # docker compose up
+npm run down   # docker compose down
 ```
 
 ---
@@ -157,6 +180,7 @@ cd backend && alembic revision --autogenerate -m "description"
 - Tests live in `backend/tests/` mirroring the source tree; prefix with `test_`
 - Never import from `frontend/` in `backend/` or vice versa
 - Use Alembic for all schema changes — never modify DB schema directly
+- ruff line length 100; target Python 3.13
 
 ---
 
@@ -185,38 +209,52 @@ parallel — one subagent per driver file.
 - Do NOT read docs/spec/12-phase3.md unless explicitly instructed
 - Do NOT route stream_prompt() or list_models() through the agent — data plane is always direct to engine
 - Do NOT call list_models() from the wizard — wizard reads from EngineModel DB registry
+- Do NOT add a tailwind.config.js — Tailwind v4 uses CSS-native @theme
 
 ---
 
 ## Key architectural rules
 
-**run_id is the spine.** Set at run creation. Stamped on every OTel metric,
-every RequestRecord, used as Grafana dashboard variable. Never reused.
+**run_id is the spine.** Set at run creation (UUID). Stamped on every OTel metric,
+every RequestRecord, every ClickHouse event row, used as Grafana dashboard variable.
+Never reused. Passed to stream_prompt() as `str(run_id)`.
 
-**Universal agent for control plane.** The FastAPI agent (agent/agent.py)
-manages engine lifecycle for ALL runs — local and remote. Location is just
-config.host. spawn_mode has two values only: "managed" (agent spawns engine)
-or "attach" (engine already running). Ollama is ALWAYS attach mode.
+**Universal agent for control plane.** The FastAPI agent (`agent/agent.py`) manages
+engine lifecycle for ALL runs — local and remote. `config.host` is the only difference
+(localhost vs Tailscale IP/MagicDNS). `spawn_mode` has exactly two values:
+`"managed"` (agent spawns engine) or `"attach"` (engine pre-running, teardown is no-op).
+Ollama is ALWAYS attach mode. Agent authenticated via `X-Agent-Key` header
+(`AGENT_SECRET_KEY` env var, validated with `secrets.compare_digest()`).
 
-**Data plane is always direct.** stream_prompt() and list_models() call the
-engine directly — never routed through the agent. Agent is control plane only.
+**Data plane is always direct.** `stream_prompt()` and `list_models()` call the engine
+directly — never routed through the agent. Agent is control plane only.
 
-**Sidecar starts after warmup.** Warmup requests are discarded. run_started_at
-marks sidecar start — use this for Grafana chart alignment, not started_at.
+**Services layer owns orchestration.** `execute_run()` in `services/runner.py`.
+`collect_record()` in `services/collector.py`. `ch_insert()` in `services/clickhouse.py`.
+`start_sidecar()` in `services/sidecar.py`. Routers call services; services call drivers.
+
+**Sidecar starts after warmup.** Warmup requests are discarded. `run_started_at`
+marks sidecar start — use this for Grafana chart alignment, not `started_at`.
+Warmup always uses `suite.prompts[0]`.
 
 **execute_run() owns RequestRecord construction.** Drivers stream tokens via
-stream_prompt() → AsyncIterator[str | ResponseMeta]. collect_record() consumes
-the stream and builds the RequestRecord. Drivers do not build records.
+`stream_prompt()` → `AsyncIterator[str | ResponseMeta]`. `collect_record()` consumes
+the stream and builds the `RequestRecord`. Drivers do not build records.
+
+**ClickHouse writes are best-effort.** `ch_insert()` must never raise to its caller.
+Log the exception and return. A ClickHouse failure never blocks a benchmark run.
 
 **EngineModel registry decouples planning from runtime.** Model data lives in
-PostgreSQL. list_models() is only called during explicit sync. Wizard reads from DB.
-validate_config() checks DB registry — no live engine call needed.
+PostgreSQL. `list_models()` is only called during explicit sync. Wizard reads from DB.
+`validate_config()` checks DB registry — no live engine call needed.
+Manual entries (`source="manual"`) are never overwritten by sync.
 
-**SpawnResult owns cleanup contract.** teardown() is a no-op when
-SpawnResult.owned=False. Never kill a server we didn't start.
+**SpawnResult owns cleanup contract.** `teardown()` is a no-op when
+`SpawnResult.owned=False`. Never kill a server we didn't start.
 
-**Tailscale for remote access.** Remote hosts should be Tailscale IPs (100.x.x.x)
-or MagicDNS names (*.ts.net). No SSH, no asyncssh.
+**Grafana deep-link uses GRAFANA_URL (browser-facing).** Never use the Docker-internal
+`grafana:3000` address for deep-links. `GRAFANA_URL` must be reachable by the user's
+browser (`http://localhost:3001` for local dev).
 
 ---
 

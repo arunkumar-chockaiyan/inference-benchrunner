@@ -62,7 +62,8 @@ for future auth middleware — not used in Phase 1.
 
 ## Do not
 
-- Do NOT add ClickHouse, Kafka, or Phase 3 infrastructure until explicitly instructed
+- Do NOT add Kafka or Phase 3 infrastructure until explicitly instructed
+- ClickHouse IS part of Phase 1 — ch_insert() in services/clickhouse.py, best-effort write from collect_record()
 - Do NOT modify InferenceEngineDriver ABC when adding a new engine — new engines go in their own driver file only
 - Do NOT reuse or mutate run_id — set once at run creation, immutable
 - Do NOT skip the run_id label when writing OTel metrics — every metric must carry it

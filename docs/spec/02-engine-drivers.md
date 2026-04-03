@@ -11,7 +11,8 @@ backend/
     llamacpp.py     # LlamaCppDriver
     vllm.py         # VllmDriver
     sglang.py       # SGLangDriver
-  agent.py          # FastAPI agent — manages engine lifecycle for all runs
+agent/
+  agent.py          # FastAPI agent — manages engine lifecycle for all runs (separate image)
 ```
 
 ---

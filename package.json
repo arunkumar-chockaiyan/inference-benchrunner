@@ -1,0 +1,15 @@
+{
+  "name": "inference-bench-runner",
+  "private": true,
+  "description": "Benchmarking tool for LLM inference engines",
+  "scripts": {
+    "dev": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "preview": "cd frontend && npm run preview",
+    "test": "cd frontend && npm test -- --run",
+    "install:frontend": "cd frontend && npm install",
+    "up": "docker compose up",
+    "up:d": "docker compose up -d",
+    "down": "docker compose down"
+  }
+}

@@ -1,0 +1,59 @@
+extensions:
+  file_storage:
+    directory: /tmp/otel-buffer/{{ run_id }}
+
+receivers:
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: inference_engine
+          scrape_interval: 5s
+          static_configs:
+            - targets: ['{{ metrics_host }}:{{ metrics_port }}']
+
+  hostmetrics:
+    # NOTE (S-01): captures CPU/memory of the benchmarking host — NOT the remote
+    # engine machine. For local runs this is useful; for remote runs these metrics
+    # reflect the wrong host. Accepted limitation for Phase 1. See docs/review.md S-01.
+    collection_interval: 5s
+    scrapers:
+      cpu:
+      memory:
+
+processors:
+  batch:
+    timeout: 5s
+  resource:
+    attributes:
+      - key: run_id
+        value: "{{ run_id }}"
+        action: insert
+      - key: model
+        value: "{{ model }}"
+        action: insert
+      - key: engine
+        value: "{{ engine }}"
+        action: insert
+      - key: host
+        value: "{{ engine_host }}"
+        action: insert
+
+exporters:
+  otlp:
+    endpoint: "{{ central_collector_endpoint }}"
+    sending_queue:
+      storage: file_storage
+      queue_size: 1000
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s   # buffer up to 5 min of central collector unavailability
+
+service:
+  extensions: [file_storage]
+  pipelines:
+    metrics:
+      receivers:  [prometheus, hostmetrics]
+      processors: [batch, resource]
+      exporters:  [otlp]

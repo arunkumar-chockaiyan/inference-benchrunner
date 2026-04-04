@@ -12,7 +12,7 @@ networks:
 services:
 
   postgres:
-    image: postgres:16
+    image: postgres:17
     environment:
       - POSTGRES_USER=bench
       - POSTGRES_PASSWORD=bench

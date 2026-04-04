@@ -17,6 +17,12 @@
 
 - Next session needs to know:
   - Phase 2 Step 22 (PostgreSQL migration) is marked N/A — already done.
-  - `docker-compose.yml` (Step 11) must include a `postgres:16` service — see approved plan at `C:\Users\Arun\.claude\plans\wise-sparking-patterson.md`.
+  - `docker-compose.yml` (Step 11) must include a `postgres:17` service (spec updated from :16).
   - Run `cd backend && alembic upgrade head` to apply schema after `docker compose up postgres`.
   - Test DB fixture in `backend/tests/conftest.py` targets `bench_test` database — create it manually or via CI before running tests.
+
+## Pre-Phase-1 review — EngineModel.is_stale added — 2026-04-03
+
+- `is_stale: bool` added to `EngineModel` model (was missing despite being in the spec after R-18 fix).
+- **Alembic migration required** before running any sync endpoint tests — generate with:
+  `alembic revision --autogenerate -m "add_engine_model_is_stale"` then `alembic upgrade head`.

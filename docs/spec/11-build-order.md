@@ -20,50 +20,52 @@ Group A — foundation (sequential):
          Also: create backend/tests/ directory structure
          Deviation: PostgreSQL (asyncpg) used from Phase 1 — see docs/spec/01-data-models.NOTES.md
 
-         └─> [ ] 2. InferenceEngineDriver ABC + dataclasses (base.py)
+         └─> [x] 2. InferenceEngineDriver ABC + dataclasses (base.py)
                      Create: backend/drivers/base.py
                      Includes: PromptParams, ResponseMeta, SpawnResult, ABC
 
-                     └─> [ ] 3a. OllamaDriver      (backend/drivers/ollama.py)
-                     └─> [ ] 3b. LlamaCppDriver    (backend/drivers/llamacpp.py)  } parallel
-                     └─> [ ] 3c. VllmDriver        (backend/drivers/vllm.py)      }
-                     └─> [ ] 3d. SGLangDriver      (backend/drivers/sglang.py)    }
+                     └─> [x] 3a. OllamaDriver      (backend/drivers/ollama.py)
+                     └─> [x] 3b. LlamaCppDriver    (backend/drivers/llamacpp.py)  } parallel
+                     └─> [x] 3c. VllmDriver        (backend/drivers/vllm.py)      }
+                     └─> [x] 3d. SGLangDriver      (backend/drivers/sglang.py)    }
 
                      └─> [N/A] 4. RemoteSpawner (backend/drivers/remote.py)
                                   Removed: remote spawning handled by each driver's spawn()
                                   calling the agent at config.host:config.agent_port directly.
                                   See docs/review.md R-06.
 
-                     └─> [ ] 4b. Agent service
+                     └─> [x] 4b. Agent service
                                   Create: agent/agent.py, agent/requirements.txt, agent/Dockerfile
                                   Includes: all 5 endpoints, verify_agent_key dependency,
                                   AGENT_SECRET_KEY validation
                                   Note: agent has no dependency on backend/ code —
                                   can be built in parallel with steps 3a-3d
 
-                     └─> [ ] 5. wait_healthy utility (shared across drivers)
+                     └─> [x] 5. wait_healthy utility (shared across drivers)
+                                  Implemented in base.py as concrete method on ABC
 
 
 Group B — execution layer (depends on Group A):
 
-  [ ] 6. OTel sidecar template + start_sidecar()
-          Create: infra/sidecar.yaml.j2, backend/sidecar.py
+  [x] 6. OTel sidecar template + start_sidecar()
+          Create: infra/sidecar.yaml.j2, backend/services/sidecar.py
 
-          └─> [ ] 7. execute_run() + collect_record() + render_prompt() + ch_insert()
+          └─> [x] 7. execute_run() + collect_record() + render_prompt() + ch_insert()
                       Create: backend/services/runner.py (execute_run, render_prompt)
                               backend/services/collector.py (collect_record)
                               backend/services/clickhouse.py (ch_insert — best-effort)
                               backend/services/sidecar.py (start_sidecar — moved from sidecar.py)
                       Includes: ClickHouse best-effort write after every PostgreSQL insert
 
-                      └─> [ ] 8. FastAPI routes
+                      └─> [x] 8. FastAPI routes
                                   - prompts + suites
                                   - engines (list, models, probe)
                                   - runs (CRUD, start, cancel, compare)
-                                  Create: backend/main.py, backend/routers/
+                                  Created: backend/main.py, backend/routers/
+                                  (prompts, suites, engines, runs, comparisons, projects)
 
-                                  └─> [ ] 9. WebSocket live progress
-                                              Add: /ws/runs/{id} to backend/routers/runs.py
+                                  └─> [x] 9. WebSocket live progress
+                                              Added: /ws/runs/{id} in backend/routers/runs.py (ws_router)
 
 
 Group C — frontend (can run in parallel with Group B steps 8-9):

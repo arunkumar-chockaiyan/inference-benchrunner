@@ -1,7 +1,7 @@
 # Inference Benchrunner — Frontend Pages
 
 ## Stack
-React 18 + TypeScript, Vite, Zustand, Tailwind CSS, Recharts.
+React 19 + TypeScript, Vite v8, Zustand, Tailwind CSS v4 (CSS-native @theme — no tailwind.config.js), Recharts.
 Phase 1: Vite dev server. Phase 2: nginx serving built static files.
 
 ## Error handling

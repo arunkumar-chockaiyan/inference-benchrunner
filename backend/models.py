@@ -223,6 +223,9 @@ class EngineModel(Base):
     display_name: Mapped[str] = mapped_column(String, nullable=False)
     source: Mapped[str] = mapped_column(String, nullable=False)        # synced|manual
     last_synced: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    is_stale: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # True = was synced but absent from most recent sync for this engine+host
+    # Always False for source="manual" — never overwritten by sync
     notes: Mapped[str] = mapped_column(Text, nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
 

@@ -58,14 +58,24 @@ POST   /api/runs/compare               compute comparison stats for N run_ids
        response: {
          "runs": [{
            "run_id": uuid,
-           "avg": float,
-           "p99": float,
-           "min": float,
-           "max": float,
-           "stddev": float,
+           "engine": str,
+           "model": str,
+           "avg_latency_ms": float | null,
+           "p50_latency_ms": float | null,
+           "p99_latency_ms": float | null,
+           "min_latency_ms": float | null,
+           "max_latency_ms": float | null,
+           "stddev_latency_ms": float | null,
+           "avg_ttft_ms": float | null,
+           "p50_ttft_ms": float | null,
+           "p99_ttft_ms": float | null,
+           "avg_tokens_per_sec": float | null,
+           "total_requests": int,
+           "failed_requests": int,
            "sample_count": int
          }]
        }
+       See schemas/comparison.py for the full Pydantic model.
 
 GET    /api/runs                       list (filter: status, project, engine, tag, cursor, limit)
 POST   /api/runs                       create + immediately start

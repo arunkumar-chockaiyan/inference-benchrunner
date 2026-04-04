@@ -480,15 +480,18 @@ async def validate_config(self, config: RunConfig, db: AsyncSession) -> list[str
             f"Sync models or add manually via /api/engines/{config.engine}/models."
         )
 
-    # Tailscale warning for remote hosts
-    if os.environ.get("TAILSCALE_ENABLED") and config.host != "localhost":
+    # Tailscale warning for remote hosts — no env var gate (R-09)
+    # Fires unconditionally whenever host is not localhost
+    if config.host not in ("localhost", "127.0.0.1"):
         is_tailscale = (
             config.host.endswith(".ts.net") or
             config.host.startswith("100.")
         )
         if not is_tailscale:
             errors.append(
-                f"Warning: '{config.host}' does not look like a Tailscale address."
+                f"Host '{config.host}' does not appear to be a Tailscale address. "
+                f"Expected 100.x.x.x or *.ts.net. Remote access without Tailscale "
+                f"is unsupported. Proceeding anyway."
             )
 
     return errors

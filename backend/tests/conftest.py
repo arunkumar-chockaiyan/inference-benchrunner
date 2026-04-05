@@ -1,3 +1,5 @@
+import os
+
 import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -5,7 +7,14 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from database import Base
 
 
-TEST_DATABASE_URL = "postgresql+asyncpg://bench:bench@localhost:5432/bench_test"
+# Read password from env — keeps secrets out of source.
+# Falls back to the compose default only as a local-dev convenience when
+# POSTGRES_PASSWORD is not exported (postgres exposed on 127.0.0.1 via override).
+_pg_password = os.environ.get("POSTGRES_PASSWORD", "bench")
+TEST_DATABASE_URL = os.environ.get(
+    "TEST_DATABASE_URL",
+    f"postgresql+asyncpg://bench:{_pg_password}@localhost:5432/bench_test",
+)
 
 
 @pytest_asyncio.fixture(scope="session")

@@ -33,17 +33,24 @@ cd InferenceBenchRunner
 cp .env.example .env
 ```
 
-Edit `.env` and generate real secrets:
+Edit `.env` and generate real secrets for all four required variables:
 
 ```bash
-# Generate AGENT_SECRET_KEY
-python -c "import secrets; print(secrets.token_hex(32))"
+# POSTGRES_PASSWORD — database password (16 bytes is sufficient)
+python -c "import secrets; print('POSTGRES_PASSWORD=' + secrets.token_hex(16))"
 
-# Generate SECRET_KEY (must differ from AGENT_SECRET_KEY)
-python -c "import secrets; print(secrets.token_hex(32))"
+# AGENT_SECRET_KEY — shared key between backend and all agent hosts
+python -c "import secrets; print('AGENT_SECRET_KEY=' + secrets.token_hex(32))"
+
+# GRAFANA_ADMIN_PASSWORD — Grafana admin login
+python -c "import secrets; print('GRAFANA_ADMIN_PASSWORD=' + secrets.token_hex(16))"
+
+# SECRET_KEY — reserved for future auth (must differ from AGENT_SECRET_KEY)
+python -c "import secrets; print('SECRET_KEY=' + secrets.token_hex(32))"
 ```
 
-Paste the generated values into `.env`.
+Paste the generated values into `.env`. All four are **required** — compose
+has no defaults and will fail to start if any are missing.
 
 ---
 
@@ -114,8 +121,11 @@ npm run dev
 Access points:
 - **Frontend**: http://localhost:3000
 - **Backend API**: http://localhost:8080
-- **Grafana**: http://localhost:3001 (admin/admin)
-- **VictoriaMetrics**: http://localhost:8428
+- **Grafana**: http://localhost:3001 — login: `admin` / value of `GRAFANA_ADMIN_PASSWORD` in your `.env`
+
+> **Note:** PostgreSQL, ClickHouse, and VictoriaMetrics have no host port
+> bindings — they are internal to the Docker network. Access them only via
+> the services that depend on them (backend, Grafana).
 
 ---
 
@@ -187,10 +197,11 @@ inside Docker:
 
 | OS | OTEL_COLLECTOR_ENDPOINT value |
 |----|-------------------------------|
-| **macOS / Windows** | `http://host.docker.internal:4317` |
-| **Linux** | `http://172.17.0.1:4317` (Docker bridge IP) |
+| **macOS / Windows / Linux** | `http://localhost:4317` |
 
-Set this in your `.env` file when running the backend outside Docker.
+The otel-collector OTLP port is bound to `127.0.0.1:4317` on the host, so
+`localhost:4317` works on all platforms when the backend/sidecar runs outside
+Docker. Set this in your `.env` file.
 
 ---
 
@@ -217,22 +228,50 @@ just typecheck
 
 ### Test database
 
-Backend tests use a separate `bench_test` database. Create it before running tests:
+Backend tests use a separate `bench_test` database. PostgreSQL has no host
+port binding in production compose, but `docker-compose.override.yml`
+(merged automatically in dev) exposes it on `127.0.0.1:5432`.
 
-```sql
--- Connect to PostgreSQL
-CREATE DATABASE bench_test;
-```
-
-Or via CLI:
+Create the test database once:
 
 ```bash
 docker compose exec postgres createdb -U bench bench_test
 ```
 
+The tests read `POSTGRES_PASSWORD` from your shell environment. Export it
+before running pytest so the password matches your `.env`:
+
+```bash
+# Load your .env into the current shell (bash/zsh)
+export $(grep -v '^#' .env | xargs)
+
+cd backend && pytest -x -v --tb=short --no-header
+```
+
+Or set it inline:
+
+```bash
+POSTGRES_PASSWORD=<your-value> pytest -x -v --tb=short --no-header
+```
+
 ---
 
 ## Troubleshooting
+
+### Services fail to start / postgres authentication errors
+
+All four secrets in `.env` are required — compose has no defaults. If any are
+missing or still set to the placeholder value, postgres will refuse connections
+and the stack won't come up.
+
+```bash
+# Verify all secrets are set (none should say "changeme")
+grep -E "POSTGRES_PASSWORD|AGENT_SECRET_KEY|GRAFANA_ADMIN_PASSWORD|SECRET_KEY" .env
+```
+
+Re-generate any missing ones with the commands in [Step 1](#1-clone-and-configure).
+
+---
 
 ### "otelcol-contrib: command not found"
 

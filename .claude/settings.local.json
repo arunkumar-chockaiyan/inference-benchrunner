@@ -28,7 +28,8 @@
       "Bash(\"/c/Users/Arun/AppData/Local/Programs/Python/Python313/python.exe\" -m pytest tests/ -v --tb=no --no-header -q)",
       "Bash(\"/c/Users/Arun/AppData/Local/Programs/Python/Python313/python.exe\" -m pytest tests/drivers/test_llamacpp.py::test_llamacpp_invoke_stream_success -v --tb=short --no-header)",
       "Bash(/tmp/build_summary.txt:*)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(find /c/root/users/Arun/Project/Inference Eng/InferenceBenchRunner -name docker-compose*.yml -o -name Dockerfile*)"
     ]
   }
 }

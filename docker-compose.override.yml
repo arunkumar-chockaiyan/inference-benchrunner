@@ -20,3 +20,9 @@ services:
     command: uvicorn agent:app --host 0.0.0.0 --port 8787 --reload
     environment:
       - PYTHONDONTWRITEBYTECODE=1
+
+  # Expose postgres on localhost for running pytest outside Docker.
+  # Bound to 127.0.0.1 only — not reachable from LAN.
+  postgres:
+    ports:
+      - "127.0.0.1:5432:5432"

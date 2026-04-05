@@ -13,7 +13,7 @@ from database import Base
 _pg_password = os.environ.get("POSTGRES_PASSWORD", "bench")
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL",
-    f"postgresql+asyncpg://bench:{_pg_password}@localhost:5432/bench_test",
+    f"postgresql+asyncpg://bench:{_pg_password}@localhost:5433/bench_test",
 )
 
 

@@ -21,8 +21,11 @@ services:
     environment:
       - PYTHONDONTWRITEBYTECODE=1
 
-  # Expose postgres on localhost for running pytest outside Docker.
+
+  # Expose postgres on a non-conflicting host port for running pytest outside Docker.
+  # Port 5432 may be taken by a local PostgreSQL install; we use 5433 on the host.
   # Bound to 127.0.0.1 only — not reachable from LAN.
+  # Set TEST_DATABASE_URL=postgresql+asyncpg://bench:<pass>@localhost:5433/bench_test when running pytest.
   postgres:
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:5433:5432"

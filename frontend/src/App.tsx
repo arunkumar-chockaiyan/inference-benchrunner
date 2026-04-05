@@ -10,15 +10,14 @@ function NavBar() {
   return (
     <nav className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
       <span className="text-lg font-semibold text-indigo-600 tracking-tight">
-        InferenceBenchRunner
+        Inference Bench Runner
       </span>
       <div className="flex items-center gap-6">
         <NavLink
           to="/"
           end
           className={({ isActive }) =>
-            `text-sm font-medium transition-colors ${
-              isActive ? 'text-indigo-600' : 'text-gray-600 hover:text-gray-900'
+            `text-sm font-medium transition-colors ${isActive ? 'text-indigo-600' : 'text-gray-600 hover:text-gray-900'
             }`
           }
         >
@@ -27,8 +26,7 @@ function NavBar() {
         <NavLink
           to="/compare"
           className={({ isActive }) =>
-            `text-sm font-medium transition-colors ${
-              isActive ? 'text-indigo-600' : 'text-gray-600 hover:text-gray-900'
+            `text-sm font-medium transition-colors ${isActive ? 'text-indigo-600' : 'text-gray-600 hover:text-gray-900'
             }`
           }
         >

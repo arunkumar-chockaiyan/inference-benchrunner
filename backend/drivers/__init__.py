@@ -12,10 +12,14 @@ DRIVERS: dict[str, type[InferenceEngineDriver]] = {
 }
 
 
-def get_driver(engine: str) -> InferenceEngineDriver:
+def get_driver_class(engine: str) -> type[InferenceEngineDriver]:
     if engine not in DRIVERS:
         raise ValueError(f"Unknown engine: {engine!r}. Valid: {list(DRIVERS)}")
-    return DRIVERS[engine]()
+    return DRIVERS[engine]
+
+
+def get_driver(engine: str) -> InferenceEngineDriver:
+    return get_driver_class(engine)()
 
 
 __all__ = [
@@ -24,5 +28,6 @@ __all__ = [
     "ResponseMeta",
     "SpawnResult",
     "DRIVERS",
+    "get_driver_class",
     "get_driver",
 ]

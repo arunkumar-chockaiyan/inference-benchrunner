@@ -18,6 +18,36 @@ import jinja2
 
 logger = logging.getLogger(__name__)
 
+# Template path — can be patched in tests
+TEMPLATE_PATH = Path(__file__).parent.parent.parent / "infra" / "sidecar.yaml.j2"
+
+
+def render_sidecar_config(
+    template_str: str,
+    run_id: str,
+    model: str,
+    engine: str,
+    engine_host: str,
+    metrics_host: str,
+    metrics_port: int,
+    central_collector_endpoint: str,
+) -> str:
+    """Render a Jinja2 template string with sidecar configuration variables.
+
+    Uses StrictUndefined to fail fast if any variable is missing.
+    """
+    env = jinja2.Environment(undefined=jinja2.StrictUndefined)
+    template = env.from_string(template_str)
+    return template.render(
+        run_id=run_id,
+        model=model,
+        engine=engine,
+        metrics_host=metrics_host,
+        metrics_port=metrics_port,
+        engine_host=engine_host,
+        central_collector_endpoint=central_collector_endpoint,
+    )
+
 
 async def start_sidecar(
     run_id: str,
@@ -37,14 +67,11 @@ async def start_sidecar(
     Raises RuntimeError if OTEL_COLLECTOR_ENDPOINT is not set.
     Raises jinja2.UndefinedError if any template variable is missing.
     """
-    # Template path resolved relative to this file → infra/sidecar.yaml.j2
-    template_path = Path(__file__).parent.parent.parent / "infra" / "sidecar.yaml.j2"
-
     # S-06: StrictUndefined raises at render time if any variable is missing —
     # catches template/call-site mismatches immediately instead of producing a
     # broken config that only fails when otelcol-contrib starts.
     env = jinja2.Environment(undefined=jinja2.StrictUndefined)
-    template = env.from_string(template_path.read_text())
+    template = env.from_string(TEMPLATE_PATH.read_text())
 
     # S-05: fail fast with a clear message rather than bare KeyError.
     endpoint = os.environ.get("OTEL_COLLECTOR_ENDPOINT")

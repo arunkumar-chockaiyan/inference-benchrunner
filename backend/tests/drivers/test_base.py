@@ -3,40 +3,86 @@ from unittest.mock import AsyncMock
 from drivers import InferenceEngineDriver, ResponseMeta
 
 class DummyDriver(InferenceEngineDriver):
-    async def spawn(self, **kwargs):
-        pass
-    async def teardown(self):
-        # Tracking teardown for test
-        self.torn_down = True
-    async def invoke_stream(self, prompt, **kwargs):
-        yield "a", ResponseMeta(tokens=1)
+    async def spawn(self, config, run_id):
+        from drivers.base import SpawnResult
+        return SpawnResult(owned=False, pid=None, run_id=str(run_id), agent_host="localhost", agent_port=8787)
+
+    async def stream_prompt(self, prompt, run_id, params=None):
+        yield "a"
+        yield ResponseMeta(prompt_tokens=1, generated_tokens=1)
+
+    async def list_models(self, host, port):
+        return []
+
+    async def validate_config(self, config, db):
+        return []
+
+    def get_metrics_port(self, config):
+        return 9091
 
 @pytest.mark.asyncio
-async def test_teardown_owned():
+async def test_teardown_owned(monkeypatch):
+    """Test teardown in managed mode (owned=True)."""
+    from drivers.base import SpawnResult
+    from unittest.mock import patch
+
     driver = DummyDriver(host="localhost", port=11434, model_id="dummy")
-    driver.owned = True
-    driver.torn_down = False
-    
-    await getattr(InferenceEngineDriver, "teardown")(driver) # Calling base logic if it exists, or just custom logic
-    # In reality, if they implemented generic process cleanup in base, we test it.
-    # Otherwise we test the child's implementation.
-    
-    assert getattr(driver, "torn_down", True)
+
+    # Mock the http client to avoid making real requests
+    with patch("drivers.base.httpx.AsyncClient") as mock_client_class:
+        mock_client = AsyncMock()
+        mock_client_class.return_value.__aenter__.return_value = mock_client
+        mock_client.delete = AsyncMock(return_value=AsyncMock(status_code=200))
+
+        # Create a SpawnResult with owned=True
+        result = SpawnResult(
+            owned=True,
+            pid=1234,
+            run_id="test-run-123",
+            agent_host="localhost",
+            agent_port=8787,
+        )
+
+        # Mock the config
+        config = AsyncMock()
+        config.host = "localhost"
+        config.port = 11434
+
+        # Call teardown
+        await driver.teardown(config, result)
+
+        # Verify the agent was called to tear down the process
+        mock_client.delete.assert_called_once()
 
 @pytest.mark.asyncio
 async def test_teardown_attached(monkeypatch):
-    """
-    If spawn_mode='attach' (owned=False), the teardown method SHOULD DO NOTHING.
-    We test this by mocking the internal cleanup and ensuring it is NOT called.
-    """
+    """Test teardown in attach mode (owned=False) — should be a no-op."""
+    from drivers.base import SpawnResult
+    from unittest.mock import patch
+
     driver = DummyDriver(host="localhost", port=11434, model_id="dummy")
-    driver.owned = False
-    
-    # Assuming standard behavior where driver.process.terminate() would be called.
-    driver.process = AsyncMock()
-    
-    # This might require specific implementation details, but generally attach mode = no-op
-    # If the abstract base class `teardown()` has a check for `if not self.owned: return`
-    # We can test that.
-    
-    pass # To complete based on actual driver logic base
+
+    # Mock the http client
+    with patch("drivers.base.httpx.AsyncClient") as mock_client_class:
+        mock_client = AsyncMock()
+        mock_client_class.return_value.__aenter__.return_value = mock_client
+
+        # Create a SpawnResult with owned=False (attach mode)
+        result = SpawnResult(
+            owned=False,
+            pid=None,
+            run_id="test-run-456",
+            agent_host="localhost",
+            agent_port=8787,
+        )
+
+        # Mock the config
+        config = AsyncMock()
+        config.host = "localhost"
+        config.port = 11434
+
+        # Call teardown
+        await driver.teardown(config, result)
+
+        # Verify the agent was NOT called (attach mode = no-op)
+        mock_client.delete.assert_not_called()

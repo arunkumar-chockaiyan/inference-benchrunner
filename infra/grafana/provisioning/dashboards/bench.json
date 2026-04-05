@@ -1,0 +1,426 @@
+{
+  "uid": "bench-dashboard",
+  "title": "Bench — Inference Engine Benchmark",
+  "description": "Per-run inference engine benchmark metrics. Use run_id variable to filter.",
+  "tags": ["inference", "benchmark"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-30m", "to": "now" },
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      },
+      {
+        "name": "Benchmark start",
+        "datasource": { "type": "prometheus", "uid": "victoriametrics" },
+        "enable": true,
+        "hide": false,
+        "iconColor": "blue",
+        "expr": "changes(bench_run_start_timestamp{run_id=~\"$run_id\"}[1m]) > 0",
+        "step": "60s",
+        "titleFormat": "Benchmark started",
+        "textFormat": "Warmup complete — sidecar scraping. First data point follows scrape interval (~10s).",
+        "type": "default"
+      }
+    ]
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "run_id",
+        "label": "Run ID",
+        "type": "query",
+        "datasource": "VictoriaMetrics",
+        "query": "label_values(bench_request_latency_ms_bucket, run_id)",
+        "refresh": 2,
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {},
+        "hide": 0
+      },
+      {
+        "name": "engine",
+        "label": "Engine",
+        "type": "query",
+        "datasource": "VictoriaMetrics",
+        "query": "label_values(bench_request_latency_ms_bucket, engine)",
+        "refresh": 2,
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {},
+        "hide": 0
+      },
+      {
+        "name": "model",
+        "label": "Model",
+        "type": "query",
+        "datasource": "VictoriaMetrics",
+        "query": "label_values(bench_request_latency_ms_bucket{engine=~\"$engine\"}, model)",
+        "refresh": 2,
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {},
+        "hide": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "p99 Latency over time",
+      "type": "timeseries",
+      "datasource": "VictoriaMetrics",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "datasource": "VictoriaMetrics",
+          "expr": "histogram_quantile(0.99,\n  rate(bench_request_latency_ms_bucket{run_id=~\"$run_id\"}[2m])\n)",
+          "legendFormat": "{{run_id}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "auto",
+            "pointSize": 5,
+            "stacking": { "mode": "none", "group": "A" },
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "scaleDistribution": { "type": "linear" },
+            "hideFrom": { "tooltip": false, "viz": false, "legend": false },
+            "thresholdsStyle": { "mode": "off" }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }
+      }
+    },
+    {
+      "id": 2,
+      "title": "p50 Latency over time",
+      "type": "timeseries",
+      "datasource": "VictoriaMetrics",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "datasource": "VictoriaMetrics",
+          "expr": "histogram_quantile(0.50,\n  rate(bench_request_latency_ms_bucket{run_id=~\"$run_id\"}[2m])\n)",
+          "legendFormat": "{{run_id}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "auto",
+            "pointSize": 5,
+            "stacking": { "mode": "none", "group": "A" },
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "scaleDistribution": { "type": "linear" },
+            "hideFrom": { "tooltip": false, "viz": false, "legend": false },
+            "thresholdsStyle": { "mode": "off" }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }
+      }
+    },
+    {
+      "id": 3,
+      "title": "TTFT p50",
+      "type": "timeseries",
+      "datasource": "VictoriaMetrics",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "datasource": "VictoriaMetrics",
+          "expr": "histogram_quantile(0.50,\n  rate(bench_request_ttft_ms_bucket{run_id=~\"$run_id\"}[2m])\n)",
+          "legendFormat": "{{run_id}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "auto",
+            "pointSize": 5,
+            "stacking": { "mode": "none", "group": "A" },
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "scaleDistribution": { "type": "linear" },
+            "hideFrom": { "tooltip": false, "viz": false, "legend": false },
+            "thresholdsStyle": { "mode": "off" }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Tokens per second",
+      "type": "timeseries",
+      "datasource": "VictoriaMetrics",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "datasource": "VictoriaMetrics",
+          "expr": "avg by (run_id) (bench_tokens_per_second{run_id=~\"$run_id\"})",
+          "legendFormat": "{{run_id}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "auto",
+            "pointSize": 5,
+            "stacking": { "mode": "none", "group": "A" },
+            "axisPlacement": "auto",
+            "axisLabel": "tok/s",
+            "scaleDistribution": { "type": "linear" },
+            "hideFrom": { "tooltip": false, "viz": false, "legend": false },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Error rate",
+      "type": "timeseries",
+      "datasource": "VictoriaMetrics",
+      "gridPos": { "x": 0, "y": 16, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "datasource": "VictoriaMetrics",
+          "expr": "sum by (run_id) (rate(bench_request_errors_total{run_id=~\"$run_id\"}[2m]))",
+          "legendFormat": "{{run_id}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "auto",
+            "pointSize": 5,
+            "stacking": { "mode": "none", "group": "A" },
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "scaleDistribution": { "type": "linear" },
+            "hideFrom": { "tooltip": false, "viz": false, "legend": false },
+            "thresholdsStyle": { "mode": "off" }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }
+      }
+    },
+    {
+      "id": 6,
+      "title": "KV Cache utilisation",
+      "description": "vLLM/SGLang only",
+      "type": "timeseries",
+      "datasource": "VictoriaMetrics",
+      "gridPos": { "x": 8, "y": 16, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "datasource": "VictoriaMetrics",
+          "expr": "avg by (run_id) (vllm:gpu_cache_usage_perc{run_id=~\"$run_id\"})",
+          "legendFormat": "{{run_id}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "auto",
+            "pointSize": 5,
+            "stacking": { "mode": "none", "group": "A" },
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "scaleDistribution": { "type": "linear" },
+            "hideFrom": { "tooltip": false, "viz": false, "legend": false },
+            "thresholdsStyle": { "mode": "off" }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Request queue depth",
+      "type": "timeseries",
+      "datasource": "VictoriaMetrics",
+      "gridPos": { "x": 16, "y": 16, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "datasource": "VictoriaMetrics",
+          "expr": "avg by (run_id) (vllm:num_requests_running{run_id=~\"$run_id\"})",
+          "legendFormat": "{{run_id}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "auto",
+            "pointSize": 5,
+            "stacking": { "mode": "none", "group": "A" },
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "scaleDistribution": { "type": "linear" },
+            "hideFrom": { "tooltip": false, "viz": false, "legend": false },
+            "thresholdsStyle": { "mode": "off" }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }
+      }
+    },
+    {
+      "id": 8,
+      "title": "GPU utilisation",
+      "description": "Requires DCGM exporter",
+      "type": "timeseries",
+      "datasource": "VictoriaMetrics",
+      "gridPos": { "x": 0, "y": 24, "w": 24, "h": 8 },
+      "targets": [
+        {
+          "datasource": "VictoriaMetrics",
+          "expr": "avg by (run_id, gpu) (DCGM_FI_DEV_GPU_UTIL{run_id=~\"$run_id\"})",
+          "legendFormat": "{{run_id}} gpu{{gpu}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "auto",
+            "pointSize": 5,
+            "stacking": { "mode": "none", "group": "A" },
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "scaleDistribution": { "type": "linear" },
+            "hideFrom": { "tooltip": false, "viz": false, "legend": false },
+            "thresholdsStyle": { "mode": "off" }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }
+      }
+    }
+  ]
+}

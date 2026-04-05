@@ -24,7 +24,13 @@ logger = logging.getLogger(__name__)
 class VllmDriver(InferenceEngineDriver):
     """Driver for vLLM — OpenAI-compatible inference server."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        host: str | None = None,
+        port: int | None = None,
+        model_id: str | None = None,
+    ) -> None:
+        super().__init__(host=host, port=port, model_id=model_id)
         self._config: RunConfig | None = None
 
     # ── Control plane ─────────────────────────────────────────────────────────

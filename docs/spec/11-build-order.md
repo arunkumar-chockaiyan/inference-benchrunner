@@ -70,23 +70,32 @@ Group B — execution layer (depends on Group A):
 
 Group C — frontend (can run in parallel with Group B steps 8-9):
 
-  [ ] 10. React frontend
-           - run list page
-           - new run wizard (4 steps)
-           - run detail page
-           - compare page
-           Create: frontend/src/
+  [x] 10. React frontend
+           - run list page (RunList.tsx)
+           - new run wizard (NewRunWizard.tsx — 4 steps)
+           - run detail page (RunDetail.tsx — WebSocket live progress)
+           - compare page (Compare.tsx — Recharts BarChart)
+           Created: frontend/src/ (package.json, vite.config.ts, App.tsx,
+                    api/index.ts, store/index.ts, components/StatusBadge.tsx,
+                    pages/*.tsx, Dockerfile)
 
 
 Group D — infrastructure (depends on Groups B + C):
 
-  [ ] 11. Docker Compose stack
-           Create: docker-compose.yml, infra/otel-collector.yaml
-           Includes: postgres, clickhouse, otel-collector, victoriametrics, grafana services
+  [x] 11. Docker Compose stack
+           Created: docker-compose.yml, infra/otel-collector.yaml
+           Includes: postgres:17, clickhouse, otel-collector, victoriametrics,
+                     grafana, backend, agent, frontend services
            Also: infra/clickhouse/init.sql (inference_requests schema)
+           Also: backend/Dockerfile, frontend/Dockerfile
+           Also: backend/alembic/versions/20250403_0001_initial_schema.py
 
-           └─> [ ] 12. Grafana dashboard JSON + provisioning files
-                        Create: infra/grafana/provisioning/
+           └─> [x] 12. Grafana dashboard JSON + provisioning files
+                        Created: infra/grafana/provisioning/
+                          datasources/victoriametrics.yaml
+                          datasources/clickhouse.yaml
+                          dashboards/dashboard.yaml
+                          dashboards/bench.json (UID: bench-dashboard)
 ```
 
 ---

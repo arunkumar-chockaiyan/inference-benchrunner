@@ -19,10 +19,12 @@ _processes: dict[str, asyncio.subprocess.Process] = {}
 # ---------------------------------------------------------------------------
 
 
-async def verify_agent_key(x_agent_key: str = Header(...)) -> None:
+async def verify_agent_key(x_agent_key: str | None = Header(default=None)) -> None:
+    if x_agent_key is None:
+        raise HTTPException(status_code=401, detail="Missing agent key")
     expected = os.environ.get("AGENT_SECRET_KEY", "")
     if not expected:
-        raise RuntimeError("AGENT_SECRET_KEY is not set on the agent host")
+        raise HTTPException(status_code=401, detail="AGENT_SECRET_KEY is not configured on agent host")
     if not secrets.compare_digest(x_agent_key, expected):
         raise HTTPException(status_code=401, detail="Invalid agent key")
 

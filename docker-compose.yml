@@ -1,0 +1,140 @@
+version: "3.9"
+
+networks:
+  bench-net:
+    driver: bridge
+
+services:
+
+  postgres:
+    image: postgres:17
+    environment:
+      - POSTGRES_USER=bench
+      - POSTGRES_PASSWORD=bench
+      - POSTGRES_DB=bench
+    ports: ["5432:5432"]
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bench"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks: [bench-net]
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    ports:
+      - "8123:8123"   # HTTP interface
+      - "9000:9000"   # native protocol
+    volumes:
+      - ch-data:/var/lib/clickhouse
+      - ./infra/clickhouse/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8123/ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks: [bench-net]
+
+  backend:
+    build: ./backend
+    ports: ["8080:8080"]
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://bench:bench@postgres:5432/bench
+      - OTEL_COLLECTOR_ENDPOINT=http://otel-collector:4317
+      - VICTORIAMETRICS_URL=http://victoriametrics:8428
+      - AGENT_URL=http://agent:8787
+      - AGENT_SECRET_KEY=${AGENT_SECRET_KEY}
+      - CLICKHOUSE_URL=http://clickhouse:8123
+      - GRAFANA_URL=http://localhost:3001
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      agent:
+        condition: service_healthy
+      victoriametrics:
+        condition: service_healthy
+      otel-collector:
+        condition: service_healthy
+    networks: [bench-net]
+
+  agent:
+    build: ./agent
+    command: uvicorn agent:app --host 0.0.0.0 --port 8787
+    ports: ["8787:8787"]
+    environment:
+      - AGENT_SECRET_KEY=${AGENT_SECRET_KEY}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8787/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks: [bench-net]
+
+  frontend:
+    build: ./frontend
+    ports: ["3000:3000"]
+    environment:
+      - VITE_API_URL=http://localhost:8080
+    networks: [bench-net]
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    volumes:
+      - ./infra/otel-collector.yaml:/etc/otelcol-contrib/config.yaml
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+    depends_on:
+      victoriametrics:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:13133/"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks: [bench-net]
+
+  victoriametrics:
+    image: victoriametrics/victoria-metrics:latest
+    ports: ["8428:8428"]
+    volumes:
+      - vm-data:/storage
+    command:
+      - "--retentionPeriod=12"
+      - "--storageDataPath=/storage"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8428/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks: [bench-net]
+
+  grafana:
+    image: grafana/grafana:latest
+    ports: ["3001:3000"]
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_INSTALL_PLUGINS=grafana-clickhouse-datasource
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      victoriametrics:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    networks: [bench-net]
+
+volumes:
+  pg-data:
+  ch-data:
+  vm-data:
+  grafana-data:

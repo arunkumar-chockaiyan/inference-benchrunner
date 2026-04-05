@@ -48,7 +48,14 @@ def test_template_strict_undefined():
 async def test_missing_otel_collector_endpoint_env(monkeypatch):
     monkeypatch.delenv("OTEL_COLLECTOR_ENDPOINT", raising=False)
     with pytest.raises(RuntimeError, match="OTEL_COLLECTOR_ENDPOINT is not set"):
-        await start_sidecar("run1", "llama", "vllm", "host", "mhost", 8000)
+        await start_sidecar(
+            run_id="run1",
+            engine="vllm",
+            model="llama",
+            metrics_host="mhost",
+            metrics_port=8000,
+            engine_host="host",
+        )
 
 @pytest.mark.asyncio
 @patch("services.sidecar.asyncio.create_subprocess_exec")
@@ -62,7 +69,12 @@ async def test_sidecar_subprocess_args(mock_exec, monkeypatch, tmp_path):
     monkeypatch.setattr("services.sidecar.TEMPLATE_PATH", template_file)
 
     proc, config_path = await start_sidecar(
-        "run123", "m", "e", "h", "mh", 8080
+        run_id="run123",
+        engine="e",
+        model="m",
+        metrics_host="mh",
+        metrics_port=8080,
+        engine_host="h",
     )
 
     import asyncio

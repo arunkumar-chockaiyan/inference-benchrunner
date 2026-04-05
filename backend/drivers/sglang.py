@@ -28,7 +28,13 @@ class SGLangDriver(InferenceEngineDriver):
     to VllmDriver. spawn_mode supports both "managed" and "attach".
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        host: str | None = None,
+        port: int | None = None,
+        model_id: str | None = None,
+    ) -> None:
+        super().__init__(host=host, port=port, model_id=model_id)
         self._config: RunConfig | None = None
 
     # ── Control plane ─────────────────────────────────────────────────────────

@@ -62,6 +62,19 @@ def _agent_headers() -> dict[str, str]:
 
 class InferenceEngineDriver(ABC):
 
+    def __init__(
+        self,
+        host: str | None = None,
+        port: int | None = None,
+        model_id: str | None = None,
+    ):
+        """Initialize driver with optional host, port, and model_id for testing/config."""
+        self.host = host
+        self.port = port
+        self.model_id = model_id
+        self.owned = False  # Default to attach mode; spawn() will set this
+        self.process = None  # Optional process handle for managed mode
+
     # ── Control plane (via agent) ─────────────────────────────────────────────
 
     @abstractmethod

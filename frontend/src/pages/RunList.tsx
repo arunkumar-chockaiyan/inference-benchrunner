@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { api, RunSummary } from '../api'
+import { api } from '../api'
 import { StatusBadge } from '../components/StatusBadge'
 import { useAppStore } from '../store'
 

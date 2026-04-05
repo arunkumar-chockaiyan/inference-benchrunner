@@ -4,7 +4,31 @@
       "WebSearch",
       "Bash(python3 -c \":*)",
       "Bash(py -3 -c \":*)",
-      "Bash(python -c \":*)"
+      "Bash(python -c \":*)",
+      "Bash(just install:*)",
+      "Bash(just lint:*)",
+      "Bash(just typecheck:*)",
+      "Bash(pip install:*)",
+      "Bash(cd /c/root/users/Arun/Project/Inference Eng/InferenceBenchRunner/frontend)",
+      "Bash(npm install:*)",
+      "Bash(python -m pip --version)",
+      "Bash(npm test:*)",
+      "Bash(where python3:*)",
+      "Read(//c//**)",
+      "Bash(python3 -m pip --version)",
+      "Bash(\"/c/Users/Arun/AppData/Local/Programs/Python/Python313/python.exe\" --version)",
+      "Bash(\"/c/Users/Arun/AppData/Local/Programs/Python/Python313/python.exe\" -m pip --version)",
+      "Bash(cd /c/root/users/Arun/Project/Inference Eng/InferenceBenchRunner)",
+      "Bash(\"/c/Users/Arun/AppData/Local/Programs/Python/Python313/python.exe\" -m pip install -r backend/requirements.txt)",
+      "Bash(\"/c/Users/Arun/AppData/Local/Programs/Python/Python313/python.exe\" -m pip install -r agent/requirements.txt)",
+      "Bash(cd /c/root/users/Arun/Project/Inference Eng/InferenceBenchRunner/backend)",
+      "Bash(\"/c/Users/Arun/AppData/Local/Programs/Python/Python313/python.exe\" -m pytest -x -v --tb=short --no-header)",
+      "Bash(\"/c/Users/Arun/AppData/Local/Programs/Python/Python313/python.exe\" -m pytest -x -v --tb=line --no-header)",
+      "Bash(\"/c/Users/Arun/AppData/Local/Programs/Python/Python313/python.exe\" -m pytest tests/drivers/ -x -v --tb=line --no-header)",
+      "Bash(\"/c/Users/Arun/AppData/Local/Programs/Python/Python313/python.exe\" -m pytest tests/ -v --tb=no --no-header -q)",
+      "Bash(\"/c/Users/Arun/AppData/Local/Programs/Python/Python313/python.exe\" -m pytest tests/drivers/test_llamacpp.py::test_llamacpp_invoke_stream_success -v --tb=short --no-header)",
+      "Bash(/tmp/build_summary.txt:*)",
+      "Read(//tmp/**)"
     ]
   }
 }

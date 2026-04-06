@@ -27,9 +27,9 @@ from sqlalchemy.orm import joinedload
 
 from database import AsyncSessionLocal, get_db
 from drivers import get_driver
-from models import RequestRecord, Run, RunConfig, PromptSuite, SuitePrompt
+from models import InferenceRecord, Run, RunConfig, PromptSuite, SuitePromptMap
 from schemas.comparison import ComparisonRequest, ComparisonResult, RunStats
-from schemas.run import RequestRecordRead, RunCreate, RunRead, RunConfigRead, RunSummary
+from schemas.run import InferenceRecordRead, RunCreate, RunRead, RunConfigRead, RunSummary
 from services.runner import execute_run
 
 logger = logging.getLogger(__name__)
@@ -118,11 +118,11 @@ async def compare_runs(body: ComparisonRequest, db: DbDep) -> ComparisonResult:
 
         config: RunConfig = run.config
 
-        # Load successful RequestRecords for this run
+        # Load successful InferenceRecords for this run
         result = await db.execute(
-            select(RequestRecord)
-            .where(RequestRecord.run_id == run_id)
-            .where(RequestRecord.status == "success")
+            select(InferenceRecord)
+            .where(InferenceRecord.run_id == run_id)
+            .where(InferenceRecord.status == "success")
         )
         records = result.scalars().all()
 
@@ -241,7 +241,7 @@ async def create_run(body: RunCreate, db: DbDep) -> RunRead:
         raise HTTPException(status_code=422, detail=f"Suite {body.suite_id} not found")
 
     suite_prompt_result = await db.execute(
-        select(SuitePrompt).where(SuitePrompt.suite_id == body.suite_id)
+        select(SuitePromptMap).where(SuitePromptMap.suite_id == body.suite_id)
     )
     prompt_count = len(suite_prompt_result.scalars().all())
 
@@ -354,19 +354,19 @@ async def list_run_requests(
     cursor: UUID | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
 ) -> dict:
-    """Return paginated RequestRecords for a run."""
+    """Return paginated InferenceRecords for a run."""
     # Verify run exists
     run = await db.get(Run, run_id)
     if run is None:
         raise HTTPException(status_code=404, detail="Run not found")
 
     stmt = (
-        select(RequestRecord)
-        .where(RequestRecord.run_id == run_id)
-        .order_by(RequestRecord.id)
+        select(InferenceRecord)
+        .where(InferenceRecord.run_id == run_id)
+        .order_by(InferenceRecord.id)
     )
     if cursor is not None:
-        stmt = stmt.where(RequestRecord.id > cursor)
+        stmt = stmt.where(InferenceRecord.id > cursor)
     stmt = stmt.limit(limit + 1)
 
     result = await db.execute(stmt)
@@ -376,7 +376,7 @@ async def list_run_requests(
     page = records[:limit]
     next_cursor = page[-1].id if has_next else None
 
-    items = [RequestRecordRead.model_validate(r) for r in page]
+    items = [InferenceRecordRead.model_validate(r) for r in page]
     return {"items": [i.model_dump() for i in items], "next_cursor": next_cursor}
 
 
@@ -420,10 +420,10 @@ async def run_ws(
 
             # Current TPS: avg tokens_per_second from the last 10 records
             tps_result = await db.execute(
-                select(RequestRecord.tokens_per_second)
-                .where(RequestRecord.run_id == run_id)
-                .where(RequestRecord.tokens_per_second.is_not(None))
-                .order_by(RequestRecord.started_at.desc())
+                select(InferenceRecord.tokens_per_second)
+                .where(InferenceRecord.run_id == run_id)
+                .where(InferenceRecord.tokens_per_second.is_not(None))
+                .order_by(InferenceRecord.started_at.desc())
                 .limit(10)
             )
             recent_tps = [row[0] for row in tps_result.all()]

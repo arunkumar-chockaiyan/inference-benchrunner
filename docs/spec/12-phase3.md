@@ -93,3 +93,21 @@ See `docs/spec/08-metrics-storage.md` for the current schema.
 5. Remove `ch_insert()` from `backend/runner.py`
 6. Remove direct ClickHouse write from `run_one()` in runner.py
 7. Verify metrics continuity before removing Phase 1 direct paths
+
+---
+
+## Future: Cross-Suite Comparisons
+
+**Phase 1 constraint:** SavedComparison validation requires all run_ids to share the
+same PromptSuite (apples-to-apples comparison — same workload, different engines/configs).
+
+**Phase 3+ future:** When benchmarking tools mature, consider enabling cross-suite
+comparisons (e.g., "how does llama3-8b perform on a 100-prompt suite vs a 1000-prompt
+suite?"). This would require:
+
+- Remove the suite_id validation in `/api/comparisons POST`
+- Add suite context to comparison results (group runs by suite_id)
+- Update Grafana comparison dashboard to handle multi-suite overlays
+- Consider new metrics: "performance degradation factor" (latency ratio across suites)
+
+Decision point: wait until users request this capability before building.

@@ -215,7 +215,7 @@ class InferenceEngineDriver(ABC):
 
         Always calls engine directly — never routed through agent.
         Raises httpx.TimeoutException if params.timeout_s exceeded.
-        execute_run() owns RequestRecord construction from this stream.
+        execute_run() owns InferenceRecord construction from this stream.
         """
 
     @abstractmethod

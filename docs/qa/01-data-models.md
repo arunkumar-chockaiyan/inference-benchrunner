@@ -13,10 +13,10 @@ Verify every model can be constructed with valid fields and persisted.
 | Model | Key assertions |
 |-------|---------------|
 | `Prompt` | `content` allows `{{variable}}` syntax; `variables` is a dict JSON column |
-| `PromptSuite` | `version` starts at 1, auto-increments on update |
+| `PromptSuite` | `version` starts at 1, auto-increments on update via `before_update` event listener |
 | `SuitePrompt` | `position` enforces order; FK constraints to `suite_id` and `prompt_id` hold |
 | `RunConfig` | `spawn_mode` only accepts `"managed"` or `"attach"` |
-| `Run` | `run_id` UUID set once, immutable; `status` starts as `"pending"` |
+| `Run` | `Run.id` is the run_id — UUID set at creation, used as the spine across all OTel metrics; `status` starts as `"pending"` |
 | `RequestRecord` | `attempt` is 1-based; `status` in `{"success","error","timeout"}` |
 | `EngineModel` | composite unique on `(engine, host, model_id)` enforced at DB level |
 | `SavedComparison` | `share_token` unique; `run_ids` stored as JSON list |
@@ -34,14 +34,13 @@ Test cases:
 - Transition `pending → starting` sets `started_at`
 - Transition `running → completed` sets `completed_at`
 - Transition to `failed` populates `error_message`
-- Direct jump from `pending → completed` must not occur (invariant test)
-- No transition out of terminal states (`completed`, `failed`, `cancelled`)
+- Note: FSM transitions are enforced at the application layer (`execute_run()`), not at the DB level — `Run.status` is a plain string column
 
 ### 3. run_id immutability
 
-- Create `Run` with a UUID `run_id`
-- Attempt to update `run_id` → assert DB constraint or application guard prevents it
-- All associated `RequestRecord` rows share the same `run_id`
+- `Run.id` is the run_id — the UUID primary key stamped on every OTel metric, RequestRecord, and ClickHouse event row
+- All associated `RequestRecord` rows carry a `run_id` FK equal to `Run.id`
+- Immutability is an application-layer invariant (set once at run creation, never reassigned); there is no separate DB constraint beyond the primary key
 
 ### 4. Async session — no sync leaks
 
@@ -61,7 +60,7 @@ Test cases:
 | `Prompt.variables` | Empty dict `{}` round-trips; nested strings preserved |
 | `RunConfig.variable_overrides` | `None` is valid; dict values override prompt defaults |
 | `RunConfig.tags` | Empty list `[]` valid; list of strings preserved |
-| `Run.config_snapshot` | Full `RunConfig` dict captured at run start; survives config mutation |
+| `Run.config_snapshot` | Full dict captured at run start; survives config mutation |
 | `SavedComparison.run_ids` | List of UUID strings stored and retrieved as list |
 
 ### 7. EngineModel sync behaviour
@@ -81,25 +80,39 @@ Test cases:
 
 ### 9. PostgreSQL-specific types
 
-- `UUID` columns use PostgreSQL native UUID (not VARCHAR)
-- `JSONB` columns (where applicable) support key-level queries
-- `timestamptz` columns store timezone-aware datetimes
+- `UUID` columns use PostgreSQL native UUID type — Python `uuid.UUID` objects after round-trip
+- JSON columns use `sa.JSON()` (not JSONB) — ClickHouse-compatible; key-level indexing not required
+- `DateTime(timezone=True)` maps to `TIMESTAMPTZ` — all datetime values are timezone-aware after round-trip
 
 ---
 
 ## Fixtures
 
+Defined in `backend/tests/conftest.py`:
+
 ```python
-@pytest.fixture
-async def db_session(pg_engine):
-    async with AsyncSession(pg_engine) as session:
+# Session-scoped engine — creates all tables once, drops at end of session
+@pytest_asyncio.fixture(scope="session")
+async def engine():
+    _engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+    async with _engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield _engine
+    async with _engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+    await _engine.dispose()
+
+# Function-scoped session — rolls back after each test
+@pytest_asyncio.fixture
+async def db(engine) -> AsyncSession:
+    session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with session_factory() as session:
         yield session
         await session.rollback()
-
-@pytest.fixture
-def basic_prompt(db_session):
-    return Prompt(
-        id=uuid4(), name="test", content="Hello {{name}}",
-        category="short", variables={"name": "world"},
-    )
 ```
+
+`pyproject.toml` sets `asyncio_default_fixture_loop_scope = "session"` so the session-scoped
+`engine` fixture and function-scoped `db` fixture share the same event loop.
+
+Use `db` (not `db_session`) in all tests. Use `engine` (not `pg_engine`) in fixtures that need
+direct engine access.

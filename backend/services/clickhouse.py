@@ -1,7 +1,7 @@
 """
 ClickHouse write service.
 
-Owns ch_insert() — best-effort columnar write of RequestRecord rows.
+Owns ch_insert() — best-effort columnar write of InferenceRecord rows.
 A failure here must never raise to the caller; log and return.
 
 Connection uses CLICKHOUSE_URL from config (HTTP interface, port 8123).
@@ -74,7 +74,7 @@ async def ch_insert(
     engine: str = "",
     host: str = "",
 ) -> None:
-    """Best-effort write of a RequestRecord to ClickHouse.
+    """Best-effort write of a InferenceRecord to ClickHouse.
 
     Uses clickhouse-connect (sync client) wrapped in asyncio.to_thread to avoid
     blocking the event loop.
@@ -83,7 +83,7 @@ async def ch_insert(
     swallowed so that a ClickHouse outage never aborts a benchmark run.
 
     Args:
-        record:  A RequestRecord ORM instance.
+        record:  A InferenceRecord ORM instance.
         model:   Model identifier from RunConfig.model.
         engine:  Engine name from RunConfig.engine.
         host:    Engine host from RunConfig.host.

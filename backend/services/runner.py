@@ -25,7 +25,7 @@ from sqlalchemy.orm import joinedload
 from database import AsyncSessionLocal
 from drivers import get_driver
 from drivers.base import InferenceEngineDriver, SpawnResult
-from models import Prompt, PromptSuite, RequestRecord, Run, RunConfig, SuitePrompt
+from models import Prompt, PromptSuite, InferenceRecord, Run, RunConfig, SuitePromptMap
 from services.collector import collect_record
 from services.sidecar import start_sidecar
 
@@ -79,8 +79,8 @@ async def _record_error(
     attempt: int,
     exc: Exception,
 ) -> None:
-    """Persist a failed RequestRecord (status=error) to PostgreSQL."""
-    record = RequestRecord(
+    """Persist a failed InferenceRecord (status=error) to PostgreSQL."""
+    record = InferenceRecord(
         id=uuid4(),
         run_id=run_id,
         prompt_id=prompt_id,
@@ -154,10 +154,10 @@ async def execute_run(
 
     # Load prompts eagerly — avoids lazy-load MissingGreenlet inside gather tasks.
     sp_result = await db.execute(
-        select(SuitePrompt)
-        .where(SuitePrompt.suite_id == suite.id)
-        .options(joinedload(SuitePrompt.prompt))
-        .order_by(SuitePrompt.position)
+        select(SuitePromptMap)
+        .where(SuitePromptMap.suite_id == suite.id)
+        .options(joinedload(SuitePromptMap.prompt))
+        .order_by(SuitePromptMap.position)
     )
     suite_prompts = sp_result.scalars().all()
     prompts: list[Prompt] = [sp.prompt for sp in suite_prompts]

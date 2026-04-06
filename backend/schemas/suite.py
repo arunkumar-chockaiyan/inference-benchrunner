@@ -9,7 +9,7 @@ from pydantic import BaseModel
 class SuiteCreate(BaseModel):
     name: str
     description: str = ""
-    prompt_ids: list[UUID]  # ordered; maps to SuitePrompt.position
+    prompt_ids: list[UUID]  # ordered; maps to SuitePromptMap.position
 
 
 class SuiteUpdate(BaseModel):

@@ -106,10 +106,10 @@ class RunSummary(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# RequestRecord read schema
+# InferenceRecord read schema
 # ---------------------------------------------------------------------------
 
-class RequestRecordRead(BaseModel):
+class InferenceRecordRead(BaseModel):
     id: UUID
     run_id: UUID
     prompt_id: UUID

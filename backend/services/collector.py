@@ -2,7 +2,7 @@
 Request record collection service.
 
 Owns collect_record() — consumes a stream_prompt() AsyncIterator,
-builds a RequestRecord, writes to PostgreSQL, and best-effort writes
+builds a InferenceRecord, writes to PostgreSQL, and best-effort writes
 to ClickHouse via clickhouse.ch_insert().
 """
 from __future__ import annotations
@@ -15,7 +15,7 @@ from uuid import UUID, uuid4
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from drivers.base import InferenceEngineDriver, PromptParams, ResponseMeta
-from models import Prompt, RequestRecord, RunConfig
+from models import Prompt, InferenceRecord, RunConfig
 from services.clickhouse import ch_insert
 
 logger = logging.getLogger(__name__)
@@ -41,10 +41,10 @@ async def collect_record(
     run_id: UUID,
     attempt: int,
     db: AsyncSession,
-) -> RequestRecord:
+) -> InferenceRecord:
     """Stream one prompt, measure latency/TTFT, write to PostgreSQL + ClickHouse.
 
-    Returns the RequestRecord already committed to PostgreSQL.
+    Returns the InferenceRecord already committed to PostgreSQL.
     ClickHouse write is best-effort — failure is logged but never raised.
 
     Args:
@@ -89,7 +89,7 @@ async def collect_record(
     wall_tps = generated_tokens / (end - start) if end > start else None
     tps = (meta.engine_tps if (meta and meta.engine_tps) else wall_tps)
 
-    record = RequestRecord(
+    record = InferenceRecord(
         id=uuid4(),
         run_id=run_id,
         prompt_id=prompt.id,

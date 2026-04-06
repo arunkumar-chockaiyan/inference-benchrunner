@@ -8,7 +8,7 @@ from sqlalchemy import select, delete as sa_delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
-from models import PromptSuite, SuitePrompt
+from models import PromptSuite, SuitePromptMapMap
 from schemas.suite import SuiteCreate, SuiteRead, SuiteUpdate
 
 router = APIRouter(prefix="/api/suites", tags=["suites"])
@@ -19,9 +19,9 @@ DbDep = Annotated[AsyncSession, Depends(get_db)]
 async def _build_suite_read(suite: PromptSuite, db: AsyncSession) -> SuiteRead:
     """Fetch ordered prompt_ids for a suite and return a SuiteRead."""
     result = await db.execute(
-        select(SuitePrompt)
-        .where(SuitePrompt.suite_id == suite.id)
-        .order_by(SuitePrompt.position)
+        select(SuitePromptMap)
+        .where(SuitePromptMap.suite_id == suite.id)
+        .order_by(SuitePromptMap.position)
     )
     entries = result.scalars().all()
     return SuiteRead(
@@ -52,10 +52,10 @@ async def create_suite(body: SuiteCreate, db: DbDep) -> SuiteRead:
         version=1,
     )
     db.add(suite)
-    await db.flush()  # populate suite.id before inserting SuitePrompt rows
+    await db.flush()  # populate suite.id before inserting SuitePromptMap rows
 
     for position, prompt_id in enumerate(body.prompt_ids):
-        db.add(SuitePrompt(suite_id=suite.id, prompt_id=prompt_id, position=position))
+        db.add(SuitePromptMap(suite_id=suite.id, prompt_id=prompt_id, position=position))
 
     await db.commit()
     await db.refresh(suite)
@@ -84,12 +84,12 @@ async def update_suite(
         suite.description = body.description
 
     if body.prompt_ids is not None:
-        # Delete all existing SuitePrompt rows then insert the new set
+        # Delete all existing SuitePromptMap rows then insert the new set
         await db.execute(
-            sa_delete(SuitePrompt).where(SuitePrompt.suite_id == suite_id)
+            sa_delete(SuitePromptMap).where(SuitePromptMap.suite_id == suite_id)
         )
         for position, prompt_id in enumerate(body.prompt_ids):
-            db.add(SuitePrompt(suite_id=suite_id, prompt_id=prompt_id, position=position))
+            db.add(SuitePromptMap(suite_id=suite_id, prompt_id=prompt_id, position=position))
         suite.version += 1
 
     await db.commit()

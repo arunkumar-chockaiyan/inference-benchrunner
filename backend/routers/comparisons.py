@@ -17,7 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
-from models import SavedComparison
+from models import SavedComparison, Run
 from schemas.comparison import SavedComparisonCreate, SavedComparisonRead
 
 router = APIRouter(prefix="/api/comparisons", tags=["comparisons"])
@@ -46,7 +46,35 @@ async def list_comparisons(db: DbDep) -> dict:
 
 @router.post("", response_model=SavedComparisonRead, status_code=201)
 async def create_comparison(body: SavedComparisonCreate, db: DbDep) -> SavedComparisonRead:
-    """Persist a named comparison with an auto-generated share token."""
+    """Persist a named comparison with an auto-generated share token.
+
+    Validation: All run_ids must use the same PromptSuite (apples-to-apples comparison).
+    This ensures the comparison is meaningful — same workload across different configs.
+    """
+    if not body.run_ids:
+        raise HTTPException(status_code=422, detail="run_ids list cannot be empty")
+
+    # Fetch all runs and validate they share the same suite_id
+    result = await db.execute(
+        select(Run).where(Run.id.in_(body.run_ids))
+    )
+    runs = result.scalars().all()
+
+    if len(runs) != len(body.run_ids):
+        missing_ids = set(body.run_ids) - {r.id for r in runs}
+        raise HTTPException(
+            status_code=404,
+            detail=f"Some run_ids not found: {missing_ids}"
+        )
+
+    # Validate all runs use the same suite
+    suite_ids = {r.config.suite_id for r in runs}
+    if len(suite_ids) > 1:
+        raise HTTPException(
+            status_code=422,
+            detail=f"All runs must use the same PromptSuite. Found {len(suite_ids)} different suites: {suite_ids}"
+        )
+
     comparison = SavedComparison(
         id=uuid.uuid4(),
         name=body.name,

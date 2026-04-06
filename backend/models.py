@@ -16,6 +16,7 @@ from sqlalchemy import (
     UniqueConstraint,
     UUID,
     JSON,
+    event,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -37,7 +38,7 @@ class Prompt(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow)
 
-    suite_entries: Mapped[list["SuitePrompt"]] = relationship("SuitePrompt", back_populates="prompt", cascade="all, delete-orphan")
+    suite_entries: Mapped[list["SuitePromptMap"]] = relationship("SuitePromptMap", back_populates="prompt", cascade="all, delete-orphan")
 
 
 # ---------------------------------------------------------------------------
@@ -54,12 +55,18 @@ class PromptSuite(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow)
 
-    prompts: Mapped[list["SuitePrompt"]] = relationship("SuitePrompt", back_populates="suite", order_by="SuitePrompt.position", cascade="all, delete-orphan")
+    prompts: Mapped[list["SuitePromptMap"]] = relationship("SuitePromptMap", back_populates="suite", order_by="SuitePromptMap.position", cascade="all, delete-orphan")
     run_configs: Mapped[list["RunConfig"]] = relationship("RunConfig", back_populates="suite")
 
 
-class SuitePrompt(Base):
-    __tablename__ = "suite_prompts"
+@event.listens_for(PromptSuite, "before_update")
+def _increment_suite_version(mapper, connection, target: "PromptSuite") -> None:
+    """Auto-increment version on every update — tracks suite revisions."""
+    target.version = (target.version or 0) + 1
+
+
+class SuitePromptMap(Base):
+    __tablename__ = "suite_prompt_map"
 
     suite_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("prompt_suites.id"), primary_key=True)
     prompt_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("prompts.id"), primary_key=True)
@@ -150,15 +157,15 @@ class Run(Base):
     cleanup_warning: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     config: Mapped["RunConfig"] = relationship("RunConfig", back_populates="runs")
-    records: Mapped[list["RequestRecord"]] = relationship("RequestRecord", back_populates="run", cascade="all, delete-orphan")
+    records: Mapped[list["InferenceRecord"]] = relationship("InferenceRecord", back_populates="run", cascade="all, delete-orphan")
 
 
 # ---------------------------------------------------------------------------
-# RequestRecord
+# InferenceRecord
 # ---------------------------------------------------------------------------
 
-class RequestRecord(Base):
-    __tablename__ = "request_records"
+class InferenceRecord(Base):
+    __tablename__ = "inference_records"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     run_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("runs.id"), nullable=False)

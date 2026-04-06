@@ -5,6 +5,9 @@ const RunList = lazy(() => import('./pages/RunList'))
 const NewRunWizard = lazy(() => import('./pages/NewRunWizard'))
 const RunDetail = lazy(() => import('./pages/RunDetail'))
 const Compare = lazy(() => import('./pages/Compare'))
+const PromptLibrary = lazy(() => import('./pages/PromptLibrary'))
+const Projects = lazy(() => import('./pages/Projects'))
+const ModelRegistry = lazy(() => import('./pages/ModelRegistry'))
 
 function NavBar() {
   return (
@@ -32,6 +35,33 @@ function NavBar() {
         >
           Compare
         </NavLink>
+        <NavLink
+          to="/prompts"
+          className={({ isActive }) =>
+            `text-sm font-medium transition-colors ${isActive ? 'text-indigo-600' : 'text-gray-600 hover:text-gray-900'
+            }`
+          }
+        >
+          Prompts
+        </NavLink>
+        <NavLink
+          to="/projects"
+          className={({ isActive }) =>
+            `text-sm font-medium transition-colors ${isActive ? 'text-indigo-600' : 'text-gray-600 hover:text-gray-900'
+            }`
+          }
+        >
+          Projects
+        </NavLink>
+        <NavLink
+          to="/models"
+          className={({ isActive }) =>
+            `text-sm font-medium transition-colors ${isActive ? 'text-indigo-600' : 'text-gray-600 hover:text-gray-900'
+            }`
+          }
+        >
+          Models
+        </NavLink>
       </div>
     </nav>
   )
@@ -48,6 +78,9 @@ export default function App() {
             <Route path="/runs/new" element={<NewRunWizard />} />
             <Route path="/runs/:id" element={<RunDetail />} />
             <Route path="/compare" element={<Compare />} />
+            <Route path="/prompts" element={<PromptLibrary />} />
+            <Route path="/projects" element={<Projects />} />
+            <Route path="/models" element={<ModelRegistry />} />
           </Routes>
         </Suspense>
       </main>

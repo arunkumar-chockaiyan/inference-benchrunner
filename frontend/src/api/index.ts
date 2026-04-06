@@ -159,6 +159,54 @@ export interface WsEvent {
   server_alive: boolean
 }
 
+export interface ProjectRead {
+  id: string
+  name: string
+  description: string
+  created_at: string
+}
+
+export interface PromptCreate {
+  name: string
+  content: string
+  category: string
+  variables: Record<string, string>
+}
+
+export interface PromptUpdate {
+  name?: string
+  content?: string
+  category?: string
+  variables?: Record<string, string>
+}
+
+export interface SuiteCreate {
+  name: string
+  description: string
+  prompt_ids: string[]
+}
+
+export interface SuiteUpdate {
+  name?: string
+  description?: string
+  prompt_ids?: string[]
+}
+
+export interface EngineModelCreate {
+  engine: string
+  host: string
+  model_id: string
+  display_name: string
+  notes: string
+}
+
+export interface EngineMeta {
+  name: string
+  display_name: string
+  spawn_modes: string[]
+  default_port: number
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -200,12 +248,14 @@ export const api = {
   getSuite: (id: string) =>
     request<SuiteRead>('GET', `/suites/${id}`),
 
-  // Engines
-  listEngineModels: (engine: string, host?: string) =>
-    request<{ items: EngineModelRead[] }>(
-      'GET',
-      `/engines/${engine}/models${host ? `?host=${host}` : ''}`,
-    ),
+  createSuite: (body: SuiteCreate) =>
+    request<SuiteRead>('POST', '/suites', body),
+
+  updateSuite: (id: string, body: SuiteUpdate) =>
+    request<SuiteRead>('PUT', `/suites/${id}`, body),
+
+  deleteSuite: (id: string) =>
+    request<void>('DELETE', `/suites/${id}`),
 
   // Prompts
   listPrompts: (params?: { category?: string; cursor?: string }) =>
@@ -213,4 +263,45 @@ export const api = {
       'GET',
       '/prompts' + buildQuery(params),
     ),
+
+  createPrompt: (body: PromptCreate) =>
+    request<PromptRead>('POST', '/prompts', body),
+
+  updatePrompt: (id: string, body: PromptUpdate) =>
+    request<PromptRead>('PUT', `/prompts/${id}`, body),
+
+  deletePrompt: (id: string) =>
+    request<void>('DELETE', `/prompts/${id}`),
+
+  // Engines
+  listEngines: () =>
+    request<{ engines: EngineMeta[] }>('GET', '/engines'),
+
+  listEngineModels: (engine: string, host?: string) =>
+    request<{ items: EngineModelRead[] }>(
+      'GET',
+      `/engines/${engine}/models${host ? `?host=${host}` : ''}`,
+    ),
+
+  syncEngineModels: (engine: string, host: string, port: number) =>
+    request<{ synced: number }>(
+      'POST',
+      `/engines/${engine}/models/sync?host=${encodeURIComponent(host)}&port=${port}`,
+    ),
+
+  addEngineModel: (engine: string, body: EngineModelCreate) =>
+    request<EngineModelRead>('POST', `/engines/${engine}/models`, body),
+
+  deleteEngineModel: (engine: string, modelId: string) =>
+    request<void>('DELETE', `/engines/${engine}/models/${modelId}`),
+
+  // Projects
+  listProjects: () =>
+    request<{ items: ProjectRead[] }>('GET', '/projects'),
+
+  createProject: (body: { name: string; description?: string }) =>
+    request<ProjectRead>('POST', '/projects', body),
+
+  listProjectRuns: (id: string) =>
+    request<{ items: RunSummary[] }>('GET', `/projects/${id}/runs`),
 }

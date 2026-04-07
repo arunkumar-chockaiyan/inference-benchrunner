@@ -196,15 +196,14 @@ class LlamaCppDriver(InferenceEngineDriver):
         result = await db.execute(
             select(EngineModel).where(
                 EngineModel.engine == config.engine,
-                EngineModel.host == config.host,
                 EngineModel.model_id == config.model,
             )
         )
         known = result.scalar_one_or_none()
         if not known:
             errors.append(
-                f"Model '{config.model}' not found in registry for llamacpp on "
-                f"{config.host}. Add manually via /api/engines/llamacpp/models."
+                f"Model '{config.model}' not found in registry for llamacpp. "
+                f"Add manually via /api/engines/llamacpp/models."
             )
 
         # 4. Tailscale warning for non-localhost remote hosts

@@ -225,17 +225,16 @@ class EngineModel(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     engine: Mapped[str] = mapped_column(String, nullable=False)       # ollama|llamacpp|vllm|sglang
-    host: Mapped[str] = mapped_column(String, nullable=False)
     model_id: Mapped[str] = mapped_column(String, nullable=False)
     display_name: Mapped[str] = mapped_column(String, nullable=False)
     source: Mapped[str] = mapped_column(String, nullable=False)        # synced|manual
     last_synced: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     is_stale: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    # True = was synced but absent from most recent sync for this engine+host
+    # True = was synced but absent from most recent sync for this engine
     # Always False for source="manual" — never overwritten by sync
     notes: Mapped[str] = mapped_column(Text, nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
 
     __table_args__ = (
-        UniqueConstraint("engine", "host", "model_id", name="uq_engine_host_model"),
+        UniqueConstraint("engine", "model_id", name="uq_engine_model"),
     )

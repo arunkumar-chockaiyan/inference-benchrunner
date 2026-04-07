@@ -119,7 +119,6 @@ export interface PromptRead {
 export interface EngineModelRead {
   id: string
   engine: string
-  host: string
   model_id: string
   display_name: string
   source: string
@@ -194,7 +193,6 @@ export interface SuiteUpdate {
 
 export interface EngineModelCreate {
   engine: string
-  host: string
   model_id: string
   display_name: string
   notes: string
@@ -277,11 +275,8 @@ export const api = {
   listEngines: () =>
     request<{ engines: EngineMeta[] }>('GET', '/engines'),
 
-  listEngineModels: (engine: string, host?: string) =>
-    request<{ items: EngineModelRead[] }>(
-      'GET',
-      `/engines/${engine}/models${host ? `?host=${host}` : ''}`,
-    ),
+  listEngineModels: (engine: string) =>
+    request<{ items: EngineModelRead[] }>('GET', `/engines/${engine}/models`),
 
   syncEngineModels: (engine: string, host: string, port: number) =>
     request<{ synced: number }>(

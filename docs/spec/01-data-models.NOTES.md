@@ -26,3 +26,20 @@
 - `is_stale: bool` added to `EngineModel` model (was missing despite being in the spec after R-18 fix).
 - **Alembic migration required** before running any sync endpoint tests — generate with:
   `alembic revision --autogenerate -m "add_engine_model_is_stale"` then `alembic upgrade head`.
+
+## EngineModel: host removed from registry — 2025-04-06
+
+- Deviation: `host` column dropped from `engine_models` table. Spec included `host` in the
+  unique key `(engine, host, model_id)` and showed a Host column in the model registry UI.
+- Reason: Tying a model to a specific host prevents reuse. A registered model (e.g.
+  `ollama/llama3.1:8b`) should be selectable against any host — localhost or remote — when
+  creating a run config. Host is a runtime concern that belongs in RunConfig, not the registry.
+- New unique constraint: `(engine, model_id)` — `uq_engine_model`.
+- Sync endpoint still accepts `host` + `port` as ephemeral query params to reach the live
+  engine for discovery, but does not store them.
+- Stale logic now scoped per-engine only (not per engine+host).
+- Migration: `backend/alembic/versions/20250406_0002_remove_host_from_engine_models.py`
+- Affected files: models.py, schemas/engine.py, routers/engines.py, api/index.ts,
+  ModelRegistry.tsx, seed_models.json, seed_models.py
+- Next session needs to know: EngineModel has no host. The wizard engine step must NOT
+  filter `listEngineModels` by host — it fetches all models for the engine from the DB registry.

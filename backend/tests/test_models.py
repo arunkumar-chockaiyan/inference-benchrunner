@@ -113,10 +113,9 @@ async def test_runconfig_spawn_mode_values(db):
 
 
 async def test_engine_model_unique_constraint(db):
-    """EngineModel: composite unique (engine, host, model_id) enforced at DB level."""
+    """EngineModel: composite unique (engine, model_id) enforced at DB level."""
     m1 = EngineModel(
         engine="ollama",
-        host=f"host-{uuid.uuid4().hex[:8]}",
         model_id="tinyllama",
         display_name="TinyLlama",
         source="manual",
@@ -126,7 +125,6 @@ async def test_engine_model_unique_constraint(db):
 
     m2 = EngineModel(
         engine=m1.engine,
-        host=m1.host,
         model_id=m1.model_id,
         display_name="Duplicate",
         source="synced",
@@ -400,11 +398,9 @@ async def test_saved_comparison_run_ids_roundtrip(db):
 
 async def test_enginemodel_synced_goes_stale(db):
     """source='synced' absent from most recent sync → is_stale=True, NOT deleted."""
-    host = f"host-{uuid.uuid4().hex[:8]}"
     synced = EngineModel(
         engine="vllm",
-        host=host,
-        model_id="model-b",
+        model_id=f"model-{uuid.uuid4().hex[:8]}",
         display_name="Model B",
         source="synced",
         is_stale=False,
@@ -423,11 +419,9 @@ async def test_enginemodel_synced_goes_stale(db):
 
 async def test_enginemodel_manual_not_overwritten(db):
     """source='manual' record: is_stale always False, unaffected by sync logic."""
-    host = f"host-{uuid.uuid4().hex[:8]}"
     manual = EngineModel(
         engine="llamacpp",
-        host=host,
-        model_id="/models/q4.gguf",
+        model_id=f"/models/q4-{uuid.uuid4().hex[:8]}.gguf",
         display_name="Q4 GGUF",
         source="manual",
         is_stale=False,

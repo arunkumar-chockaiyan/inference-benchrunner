@@ -44,11 +44,33 @@ frontend:
 
 # Apply all pending Alembic migrations
 migrate:
-    cd backend ; alembic upgrade head
+    docker compose run --rm backend alembic upgrade head
 
 # Generate a new Alembic migration (usage: just migration "add_suite_table")
 migration msg:
-    cd backend ; alembic revision --autogenerate -m "{{msg}}"
+    docker compose run --rm backend alembic revision --autogenerate -m "{{msg}}"
+
+# Wipe DB volume + recreate schema — use freely while schema is still being refined
+db-reset:
+    docker compose down -v
+    docker compose up -d --wait postgres
+    docker compose run --rm backend alembic upgrade head
+
+# DESTRUCTIVE: Wipes DB, deletes all existing migrations, and creates a fresh single initial_schema
+# Use this when refining the data model in early dev to avoid dozens of tiny migration files
+db-squash:
+    docker compose down -v
+    docker compose up -d --wait postgres
+    docker compose run --rm backend sh -c "rm -f alembic/versions/*.py"
+    docker compose run --rm backend alembic revision --autogenerate -m "initial_schema"
+    docker compose run --rm backend alembic upgrade head
+
+# Seed engine model registry from data/seed_models.json (backend must be running)
+# Usage: just seed-models                        → seed all engines
+#        just seed-models --engine ollama        → one engine only
+#        just seed-models --dry-run              → preview without writing
+seed-models *args:
+    python backend/seed_models.py --base-url http://localhost:8080 {{args}}
 
 # ── Testing ────────────────────────────────────────────────────────────────────
 

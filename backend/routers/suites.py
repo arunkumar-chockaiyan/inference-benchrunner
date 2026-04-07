@@ -8,7 +8,7 @@ from sqlalchemy import select, delete as sa_delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
-from models import PromptSuite, SuitePromptMapMap
+from models import PromptSuite, SuitePromptMap
 from schemas.suite import SuiteCreate, SuiteRead, SuiteUpdate
 
 router = APIRouter(prefix="/api/suites", tags=["suites"])

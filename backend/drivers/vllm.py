@@ -162,13 +162,12 @@ class VllmDriver(InferenceEngineDriver):
         result = await db.execute(
             select(EngineModel).where(
                 EngineModel.engine == config.engine,
-                EngineModel.host == config.host,
                 EngineModel.model_id == config.model,
             )
         )
         if not result.scalar_one_or_none():
             errors.append(
-                f"Model '{config.model}' not found in registry for vllm on {config.host}."
+                f"Model '{config.model}' not found in registry for vllm."
             )
 
         # Port check

@@ -9,7 +9,6 @@ from pydantic import BaseModel
 class EngineModelRead(BaseModel):
     id: UUID
     engine: str
-    host: str
     model_id: str
     display_name: str
     source: str         # "synced" | "manual"
@@ -23,7 +22,6 @@ class EngineModelRead(BaseModel):
 class EngineModelCreate(BaseModel):
     """For manual model registry entries."""
     engine: str
-    host: str
     model_id: str
     display_name: str = ""
     notes: str = ""

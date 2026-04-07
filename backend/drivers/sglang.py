@@ -210,17 +210,16 @@ class SGLangDriver(InferenceEngineDriver):
         """
         errors: list[str] = []
 
-        # 1. Registry check — model must be known for this engine + host
+        # 1. Registry check — model must be known for this engine
         result = await db.execute(
             select(EngineModel).where(
                 EngineModel.engine == config.engine,
-                EngineModel.host == config.host,
                 EngineModel.model_id == config.model,
             )
         )
         if not result.scalar_one_or_none():
             errors.append(
-                f"Model '{config.model}' not found in registry for sglang on {config.host}. "
+                f"Model '{config.model}' not found in registry for sglang. "
                 f"Sync models first or add manually via /api/engines/sglang/models."
             )
 

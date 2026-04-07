@@ -134,7 +134,7 @@ export default function NewRunWizard() {
     setModelsLoading(true)
     setModelsError(null)
     api
-      .listEngineModels(engine, isRemote ? host : 'localhost')
+      .listEngineModels(engine)
       .then(({ items }) => setModels(items))
       .catch((e: Error) => setModelsError(e.message))
       .finally(() => setModelsLoading(false))

@@ -7,8 +7,8 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
-      '/api': 'http://localhost:8080',
-      '/ws': { target: 'ws://localhost:8080', ws: true },
+      '/api': process.env.BACKEND_URL || 'http://localhost:8080',
+      '/ws': { target: process.env.BACKEND_WS_URL || 'ws://localhost:8080', ws: true },
     },
   },
 })

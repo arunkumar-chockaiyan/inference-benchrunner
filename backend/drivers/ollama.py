@@ -174,11 +174,10 @@ class OllamaDriver(InferenceEngineDriver):
         """
         errors: list[str] = []
 
-        # 1. Registry check — model must be known for this engine + host
+        # 1. Registry check — model must be known for this engine
         result = await db.execute(
             select(EngineModel).where(
                 EngineModel.engine == config.engine,
-                EngineModel.host == config.host,
                 EngineModel.model_id == config.model,
             )
         )
@@ -186,7 +185,7 @@ class OllamaDriver(InferenceEngineDriver):
         if not known:
             errors.append(
                 f"Model '{config.model}' not found in registry for "
-                f"{config.engine} on {config.host}. "
+                f"{config.engine}. "
                 f"Sync models first or add manually via "
                 f"/api/engines/{config.engine}/models."
             )

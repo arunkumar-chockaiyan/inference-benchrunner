@@ -21,11 +21,11 @@ function truncate(s: string, n: number): string {
 function SkeletonRow() {
   return (
     <tr className="border-b border-gray-100">
-      {Array.from({ length: 8 }).map((_, i) => (
+      {Array.from({ length: 7 }).map((_, i) => (
         <td key={i} className="px-4 py-3">
           <div
             className="h-4 bg-gray-200 rounded animate-pulse"
-            style={{ width: i === 0 ? '60px' : i === 7 ? '40px' : '80%' }}
+            style={{ width: i === 0 ? '60px' : i === 6 ? '40px' : '80%' }}
           />
         </td>
       ))}
@@ -174,7 +174,6 @@ interface AddModalProps {
 
 function AddModal({ engines, onClose, onAdded }: AddModalProps) {
   const [engine, setEngine] = useState(engines[0]?.name ?? 'ollama')
-  const [host, setHost] = useState('localhost')
   const [modelId, setModelId] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [notes, setNotes] = useState('')
@@ -191,7 +190,6 @@ function AddModal({ engines, onClose, onAdded }: AddModalProps) {
     api
       .addEngineModel(engine, {
         engine,
-        host,
         model_id: modelId.trim(),
         display_name: displayName.trim(),
         notes: notes.trim(),
@@ -229,17 +227,6 @@ function AddModal({ engines, onClose, onAdded }: AddModalProps) {
                 </option>
               ))}
             </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Host</label>
-            <input
-              type="text"
-              value={host}
-              onChange={(e) => setHost(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              placeholder="localhost"
-            />
           </div>
 
           <div>
@@ -315,7 +302,6 @@ export default function ModelRegistry() {
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const [engineFilter, setEngineFilter] = useState<string>('All')
-  const [hostFilter, setHostFilter] = useState<string>('')
 
   const [showSync, setShowSync] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
@@ -328,7 +314,6 @@ export default function ModelRegistry() {
         const all = results.flatMap((r) => r.items)
         all.sort((a, b) => {
           if (a.engine !== b.engine) return a.engine.localeCompare(b.engine)
-          if (a.host !== b.host) return a.host.localeCompare(b.host)
           return a.model_id.localeCompare(b.model_id)
         })
         setModels(all)
@@ -375,7 +360,6 @@ export default function ModelRegistry() {
 
   const filtered = models.filter((m) => {
     if (engineFilter !== 'All' && m.engine !== engineFilter) return false
-    if (hostFilter && !m.host.toLowerCase().includes(hostFilter.toLowerCase())) return false
     return true
   })
 
@@ -399,7 +383,6 @@ export default function ModelRegistry() {
               const next = [...prev, model]
               next.sort((a, b) => {
                 if (a.engine !== b.engine) return a.engine.localeCompare(b.engine)
-                if (a.host !== b.host) return a.host.localeCompare(b.host)
                 return a.model_id.localeCompare(b.model_id)
               })
               return next
@@ -445,24 +428,6 @@ export default function ModelRegistry() {
             ))}
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-600">Host:</label>
-          <input
-            type="text"
-            value={hostFilter}
-            onChange={(e) => setHostFilter(e.target.value)}
-            placeholder="Filter by host…"
-            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-48"
-          />
-          {hostFilter && (
-            <button
-              onClick={() => setHostFilter('')}
-              className="text-sm text-gray-500 hover:text-gray-700 underline"
-            >
-              Clear
-            </button>
-          )}
-        </div>
       </div>
 
       {error && (
@@ -497,9 +462,6 @@ export default function ModelRegistry() {
                 Engine
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Host
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Model ID
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -524,7 +486,7 @@ export default function ModelRegistry() {
               Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-12 text-center text-sm text-gray-500">
+                <td colSpan={7} className="px-4 py-12 text-center text-sm text-gray-500">
                   {models.length === 0
                     ? 'No models registered yet. Sync or add a model to get started.'
                     : 'No models match the current filters.'}
@@ -542,7 +504,6 @@ export default function ModelRegistry() {
                       {row.engine}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-gray-700">{row.host}</td>
                   <td className="px-4 py-3">
                     <span className="font-mono text-gray-900 text-xs">{row.model_id}</span>
                   </td>

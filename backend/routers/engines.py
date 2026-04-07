@@ -101,13 +101,10 @@ async def probe_engine(body: ProbeRequest) -> ProbeResponse:
 @router.get("/{engine}/models")
 async def list_engine_models(
     engine: str,
-    host: str | None = None,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     _check_engine(engine)
-    stmt = select(EngineModel).where(EngineModel.engine == engine)
-    if host is not None:
-        stmt = stmt.where(EngineModel.host == host)
+    stmt = select(EngineModel).where(EngineModel.engine == engine).order_by(EngineModel.model_id)
     result = await db.execute(stmt)
     rows = result.scalars().all()
     return {"items": [EngineModelRead.model_validate(r) for r in rows]}
@@ -148,7 +145,6 @@ async def sync_engine_models(
 
         existing_stmt = select(EngineModel).where(
             EngineModel.engine == engine,
-            EngineModel.host == host,
             EngineModel.model_id == model_id,
         )
         result = await db.execute(existing_stmt)
@@ -164,7 +160,6 @@ async def sync_engine_models(
                 EngineModel(
                     id=uuid.uuid4(),
                     engine=engine,
-                    host=host,
                     model_id=model_id,
                     display_name=display_name,
                     source="synced",
@@ -181,19 +176,17 @@ async def sync_engine_models(
             sa_update(EngineModel)
             .where(
                 EngineModel.engine == engine,
-                EngineModel.host == host,
                 EngineModel.source == "synced",
                 EngineModel.model_id.not_in(fetched_model_ids),
             )
             .values(is_stale=True)
         )
     else:
-        # All existing synced rows for this engine+host become stale
+        # All existing synced rows for this engine become stale
         stale_stmt = (
             sa_update(EngineModel)
             .where(
                 EngineModel.engine == engine,
-                EngineModel.host == host,
                 EngineModel.source == "synced",
             )
             .values(is_stale=True)
@@ -220,7 +213,6 @@ async def add_engine_model(
     row = EngineModel(
         id=uuid.uuid4(),
         engine=engine,
-        host=body.host,
         model_id=body.model_id,
         display_name=body.display_name or body.model_id,
         source="manual",
@@ -236,7 +228,7 @@ async def add_engine_model(
         await db.rollback()
         raise HTTPException(
             status_code=409,
-            detail=f"Model {body.model_id!r} already exists for engine={engine} host={body.host}",
+            detail=f"Model {body.model_id!r} already exists for engine={engine}",
         )
 
     return EngineModelRead.model_validate(row)

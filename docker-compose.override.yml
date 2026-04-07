@@ -21,6 +21,20 @@ services:
     environment:
       - PYTHONDONTWRITEBYTECODE=1
 
+  frontend:
+    build:
+      context: ./frontend
+      target: builder
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npm run dev -- --host 0.0.0.0 --port 3000
+    environment:
+      # Fix file watching issues on Windows Docker
+      - CHOKIDAR_USEPOLLING=true
+      - BACKEND_URL=http://backend:8080
+      - BACKEND_WS_URL=ws://backend:8080
+
 
   # Expose postgres on a non-conflicting host port for running pytest outside Docker.
   # Port 5432 may be taken by a local PostgreSQL install; we use 5433 on the host.
